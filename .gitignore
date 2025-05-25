@@ -1,0 +1,26 @@
+# 忽略 data 文件夹及其所有内容
+data/
+
+# 忽略所有 .zip 文件
+*.zip
+
+# 忽略常见的操作系统和IDE生成的文件
+.DS_Store          # macOS 自动生成的文件
+.vscode/           # VS Code 配置文件夹
+.idea/             # IntelliJ IDEA 配置文件夹
+Thumbs.db          # Windows 缩略图缓存
+desktop.ini        # Windows 桌面配置
+
+# 忽略 Python 相关的编译和缓存文件（如果你的项目是 Python）
+__pycache__/
+*.pyc
+*.pyd
+.Python/
+venv/              # 虚拟环境文件夹
+.env               # 环境变量文件
+
+# 忽略其他可能的配置文件，如 .env 文件
+.env
+
+# 忽略日志文件
+*.log

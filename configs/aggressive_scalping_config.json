@@ -1,0 +1,59 @@
+{
+    "strategy_name": "激进短线策略",
+    "description": "高频交易，追求快速盈利，预期收益5-10%",
+    "risk_level": "中高",
+    "trading_params": {
+        "leverage": 15,
+        "risk_per_trade": 0.008,
+        "stop_loss_pct": 0.012,
+        "take_profit_pct": 0.025,
+        "max_positions": 5,
+        "pinbar_shadow_ratio": 1.8,
+        "pinbar_body_ratio": 0.35,
+        "min_candle_size": 0.0008,
+        "sma_fast": 15,
+        "sma_slow": 35,
+        "sma_trend": 80,
+        "trend_strength": 0.008,
+        "rsi_period": 14,
+        "rsi_oversold": 25,
+        "rsi_overbought": 75,
+        "volatility_lookback": 15,
+        "min_volatility": 0.008,
+        "max_volatility": 0.08,
+        "avoid_weekend": false,
+        "trading_hours_start": 0,
+        "trading_hours_end": 24,
+        "use_trailing_stop": true,
+        "trail_activation_pct": 0.008,
+        "trail_percent": 0.7
+    },
+    "backtest_params": {
+        "symbol": "BTCUSDT",
+        "interval": "1h",
+        "start_date": "2024-01-01",
+        "end_date": "2025-05-21",
+        "initial_cash": 20000.0,
+        "commission": 0.0004
+    },
+    "signal_config": {
+        "pinbar_weight": 1.2,
+        "trend_weight": 0.9,
+        "rsi_weight": 0.8,
+        "macd_weight": 0.6,
+        "volume_weight": 0.7,
+        "confidence_threshold": 0.55
+    },
+    "optimization_config": {
+        "max_combinations": 500,
+        "optimization_method": "grid",
+        "n_jobs": 1,
+        "save_results": true
+    },
+    "report_config": {
+        "auto_open_browser": true,
+        "generate_excel": false,
+        "include_charts": true,
+        "chart_height": 600
+    }
+}

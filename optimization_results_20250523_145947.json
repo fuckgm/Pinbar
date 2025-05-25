@@ -1,0 +1,723 @@
+{
+  "best_params": {
+    "description": "增强版Pinbar策略配置",
+    "version": "2.0",
+    "形态识别参数": {
+      "min_shadow_body_ratio": 1.8,
+      "max_body_ratio": 0.4,
+      "min_candle_size": 0.002,
+      "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+    },
+    "技术指标参数": {
+      "trend_period": 20,
+      "rsi_period": 14,
+      "rsi_oversold": 30,
+      "rsi_overbought": 70,
+      "bb_period": 20,
+      "volume_threshold": 1.2,
+      "description": "多重技术指标确认参数"
+    },
+    "关键位识别": {
+      "sr_lookback": 50,
+      "level_proximity": 0.001,
+      "description": "支撑阻力位回望50根K线，接近度0.1%"
+    },
+    "信号过滤": {
+      "min_signal_score": 4,
+      "max_signal_score": 6,
+      "description": "最低4分才交易，满分6分"
+    },
+    "风险管理": {
+      "risk_per_trade": 0.02,
+      "stop_loss_atr_multiplier": 0.1,
+      "take_profit_ratios": [
+        2.0,
+        3.0,
+        5.0
+      ],
+      "position_scaling": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "description": "每笔交易风险2%，分批止盈"
+    },
+    "min_shadow_body_ratio": 1.643,
+    "max_body_ratio": 0.394,
+    "rsi_oversold": 28,
+    "rsi_overbought": 67,
+    "min_signal_score": 3,
+    "volume_threshold": 1.957
+  },
+  "best_result": {
+    "index": 141,
+    "params": {
+      "description": "增强版Pinbar策略配置",
+      "version": "2.0",
+      "形态识别参数": {
+        "min_shadow_body_ratio": 1.8,
+        "max_body_ratio": 0.4,
+        "min_candle_size": 0.002,
+        "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+      },
+      "技术指标参数": {
+        "trend_period": 20,
+        "rsi_period": 14,
+        "rsi_oversold": 30,
+        "rsi_overbought": 70,
+        "bb_period": 20,
+        "volume_threshold": 1.2,
+        "description": "多重技术指标确认参数"
+      },
+      "关键位识别": {
+        "sr_lookback": 50,
+        "level_proximity": 0.001,
+        "description": "支撑阻力位回望50根K线，接近度0.1%"
+      },
+      "信号过滤": {
+        "min_signal_score": 4,
+        "max_signal_score": 6,
+        "description": "最低4分才交易，满分6分"
+      },
+      "风险管理": {
+        "risk_per_trade": 0.02,
+        "stop_loss_atr_multiplier": 0.1,
+        "take_profit_ratios": [
+          2.0,
+          3.0,
+          5.0
+        ],
+        "position_scaling": [
+          0.5,
+          0.3,
+          0.2
+        ],
+        "description": "每笔交易风险2%，分批止盈"
+      },
+      "min_shadow_body_ratio": 1.643,
+      "max_body_ratio": 0.394,
+      "rsi_oversold": 28,
+      "rsi_overbought": 67,
+      "min_signal_score": 3,
+      "volume_threshold": 1.957
+    },
+    "total_return": 53.76313427124001,
+    "win_rate": 0.8571428571428571,
+    "profit_factor": 12.154773398895005,
+    "max_drawdown": 2.000000000000004,
+    "total_trades": 14,
+    "avg_signals_per_month": 10.08,
+    "score": 76.65
+  },
+  "top_10_results": [
+    {
+      "index": 141,
+      "params": {
+        "description": "增强版Pinbar策略配置",
+        "version": "2.0",
+        "形态识别参数": {
+          "min_shadow_body_ratio": 1.8,
+          "max_body_ratio": 0.4,
+          "min_candle_size": 0.002,
+          "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+        },
+        "技术指标参数": {
+          "trend_period": 20,
+          "rsi_period": 14,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "bb_period": 20,
+          "volume_threshold": 1.2,
+          "description": "多重技术指标确认参数"
+        },
+        "关键位识别": {
+          "sr_lookback": 50,
+          "level_proximity": 0.001,
+          "description": "支撑阻力位回望50根K线，接近度0.1%"
+        },
+        "信号过滤": {
+          "min_signal_score": 4,
+          "max_signal_score": 6,
+          "description": "最低4分才交易，满分6分"
+        },
+        "风险管理": {
+          "risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 0.1,
+          "take_profit_ratios": [
+            2.0,
+            3.0,
+            5.0
+          ],
+          "position_scaling": [
+            0.5,
+            0.3,
+            0.2
+          ],
+          "description": "每笔交易风险2%，分批止盈"
+        },
+        "min_shadow_body_ratio": 1.643,
+        "max_body_ratio": 0.394,
+        "rsi_oversold": 28,
+        "rsi_overbought": 67,
+        "min_signal_score": 3,
+        "volume_threshold": 1.957
+      },
+      "total_return": 53.76313427124001,
+      "win_rate": 0.8571428571428571,
+      "profit_factor": 12.154773398895005,
+      "max_drawdown": 2.000000000000004,
+      "total_trades": 14,
+      "avg_signals_per_month": 10.08,
+      "score": 76.65
+    },
+    {
+      "index": 424,
+      "params": {
+        "description": "增强版Pinbar策略配置",
+        "version": "2.0",
+        "形态识别参数": {
+          "min_shadow_body_ratio": 1.8,
+          "max_body_ratio": 0.4,
+          "min_candle_size": 0.002,
+          "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+        },
+        "技术指标参数": {
+          "trend_period": 20,
+          "rsi_period": 14,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "bb_period": 20,
+          "volume_threshold": 1.2,
+          "description": "多重技术指标确认参数"
+        },
+        "关键位识别": {
+          "sr_lookback": 50,
+          "level_proximity": 0.001,
+          "description": "支撑阻力位回望50根K线，接近度0.1%"
+        },
+        "信号过滤": {
+          "min_signal_score": 4,
+          "max_signal_score": 6,
+          "description": "最低4分才交易，满分6分"
+        },
+        "风险管理": {
+          "risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 0.1,
+          "take_profit_ratios": [
+            2.0,
+            3.0,
+            5.0
+          ],
+          "position_scaling": [
+            0.5,
+            0.3,
+            0.2
+          ],
+          "description": "每笔交易风险2%，分批止盈"
+        },
+        "min_shadow_body_ratio": 1.717,
+        "max_body_ratio": 0.47,
+        "rsi_oversold": 20,
+        "rsi_overbought": 71,
+        "min_signal_score": 3,
+        "volume_threshold": 1.398
+      },
+      "total_return": 53.76313427124006,
+      "win_rate": 0.8571428571428571,
+      "profit_factor": 11.437403089338353,
+      "max_drawdown": 2.0000000000000053,
+      "total_trades": 14,
+      "avg_signals_per_month": 10.08,
+      "score": 76.65
+    },
+    {
+      "index": 262,
+      "params": {
+        "description": "增强版Pinbar策略配置",
+        "version": "2.0",
+        "形态识别参数": {
+          "min_shadow_body_ratio": 1.8,
+          "max_body_ratio": 0.4,
+          "min_candle_size": 0.002,
+          "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+        },
+        "技术指标参数": {
+          "trend_period": 20,
+          "rsi_period": 14,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "bb_period": 20,
+          "volume_threshold": 1.2,
+          "description": "多重技术指标确认参数"
+        },
+        "关键位识别": {
+          "sr_lookback": 50,
+          "level_proximity": 0.001,
+          "description": "支撑阻力位回望50根K线，接近度0.1%"
+        },
+        "信号过滤": {
+          "min_signal_score": 4,
+          "max_signal_score": 6,
+          "description": "最低4分才交易，满分6分"
+        },
+        "风险管理": {
+          "risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 0.1,
+          "take_profit_ratios": [
+            2.0,
+            3.0,
+            5.0
+          ],
+          "position_scaling": [
+            0.5,
+            0.3,
+            0.2
+          ],
+          "description": "每笔交易风险2%，分批止盈"
+        },
+        "min_shadow_body_ratio": 1.505,
+        "max_body_ratio": 0.483,
+        "rsi_oversold": 32,
+        "rsi_overbought": 74,
+        "min_signal_score": 3,
+        "volume_threshold": 1.957
+      },
+      "total_return": 56.715386449247816,
+      "win_rate": 0.8125,
+      "profit_factor": 8.358082933501622,
+      "max_drawdown": 3.9600000000000026,
+      "total_trades": 16,
+      "avg_signals_per_month": 11.52,
+      "score": 74.98
+    },
+    {
+      "index": 114,
+      "params": {
+        "description": "增强版Pinbar策略配置",
+        "version": "2.0",
+        "形态识别参数": {
+          "min_shadow_body_ratio": 1.8,
+          "max_body_ratio": 0.4,
+          "min_candle_size": 0.002,
+          "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+        },
+        "技术指标参数": {
+          "trend_period": 20,
+          "rsi_period": 14,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "bb_period": 20,
+          "volume_threshold": 1.2,
+          "description": "多重技术指标确认参数"
+        },
+        "关键位识别": {
+          "sr_lookback": 50,
+          "level_proximity": 0.001,
+          "description": "支撑阻力位回望50根K线，接近度0.1%"
+        },
+        "信号过滤": {
+          "min_signal_score": 4,
+          "max_signal_score": 6,
+          "description": "最低4分才交易，满分6分"
+        },
+        "风险管理": {
+          "risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 0.1,
+          "take_profit_ratios": [
+            2.0,
+            3.0,
+            5.0
+          ],
+          "position_scaling": [
+            0.5,
+            0.3,
+            0.2
+          ],
+          "description": "每笔交易风险2%，分批止盈"
+        },
+        "min_shadow_body_ratio": 1.745,
+        "max_body_ratio": 0.429,
+        "rsi_oversold": 27,
+        "rsi_overbought": 65,
+        "min_signal_score": 3,
+        "volume_threshold": 1.334
+      },
+      "total_return": 50.68787158581527,
+      "win_rate": 0.8,
+      "profit_factor": 7.075991777189724,
+      "max_drawdown": 2.000000000000002,
+      "total_trades": 15,
+      "avg_signals_per_month": 10.8,
+      "score": 74.28
+    },
+    {
+      "index": 136,
+      "params": {
+        "description": "增强版Pinbar策略配置",
+        "version": "2.0",
+        "形态识别参数": {
+          "min_shadow_body_ratio": 1.8,
+          "max_body_ratio": 0.4,
+          "min_candle_size": 0.002,
+          "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+        },
+        "技术指标参数": {
+          "trend_period": 20,
+          "rsi_period": 14,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "bb_period": 20,
+          "volume_threshold": 1.2,
+          "description": "多重技术指标确认参数"
+        },
+        "关键位识别": {
+          "sr_lookback": 50,
+          "level_proximity": 0.001,
+          "description": "支撑阻力位回望50根K线，接近度0.1%"
+        },
+        "信号过滤": {
+          "min_signal_score": 4,
+          "max_signal_score": 6,
+          "description": "最低4分才交易，满分6分"
+        },
+        "风险管理": {
+          "risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 0.1,
+          "take_profit_ratios": [
+            2.0,
+            3.0,
+            5.0
+          ],
+          "position_scaling": [
+            0.5,
+            0.3,
+            0.2
+          ],
+          "description": "每笔交易风险2%，分批止盈"
+        },
+        "min_shadow_body_ratio": 1.547,
+        "max_body_ratio": 0.452,
+        "rsi_oversold": 34,
+        "rsi_overbought": 69,
+        "min_signal_score": 4,
+        "volume_threshold": 1.62
+      },
+      "total_return": 45.0639399219977,
+      "win_rate": 0.9090909090909091,
+      "profit_factor": 20.260422354817706,
+      "max_drawdown": 2.000000000000004,
+      "total_trades": 11,
+      "avg_signals_per_month": 7.92,
+      "score": 74.21
+    },
+    {
+      "index": 79,
+      "params": {
+        "description": "增强版Pinbar策略配置",
+        "version": "2.0",
+        "形态识别参数": {
+          "min_shadow_body_ratio": 1.8,
+          "max_body_ratio": 0.4,
+          "min_candle_size": 0.002,
+          "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+        },
+        "技术指标参数": {
+          "trend_period": 20,
+          "rsi_period": 14,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "bb_period": 20,
+          "volume_threshold": 1.2,
+          "description": "多重技术指标确认参数"
+        },
+        "关键位识别": {
+          "sr_lookback": 50,
+          "level_proximity": 0.001,
+          "description": "支撑阻力位回望50根K线，接近度0.1%"
+        },
+        "信号过滤": {
+          "min_signal_score": 4,
+          "max_signal_score": 6,
+          "description": "最低4分才交易，满分6分"
+        },
+        "风险管理": {
+          "risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 0.1,
+          "take_profit_ratios": [
+            2.0,
+            3.0,
+            5.0
+          ],
+          "position_scaling": [
+            0.5,
+            0.3,
+            0.2
+          ],
+          "description": "每笔交易风险2%，分批止盈"
+        },
+        "min_shadow_body_ratio": 1.571,
+        "max_body_ratio": 0.422,
+        "rsi_oversold": 27,
+        "rsi_overbought": 67,
+        "min_signal_score": 3,
+        "volume_threshold": 1.952
+      },
+      "total_return": 47.67411415409895,
+      "win_rate": 0.75,
+      "profit_factor": 6.097510974586426,
+      "max_drawdown": 2.0000000000000036,
+      "total_trades": 16,
+      "avg_signals_per_month": 11.52,
+      "score": 72.07
+    },
+    {
+      "index": 430,
+      "params": {
+        "description": "增强版Pinbar策略配置",
+        "version": "2.0",
+        "形态识别参数": {
+          "min_shadow_body_ratio": 1.8,
+          "max_body_ratio": 0.4,
+          "min_candle_size": 0.002,
+          "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+        },
+        "技术指标参数": {
+          "trend_period": 20,
+          "rsi_period": 14,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "bb_period": 20,
+          "volume_threshold": 1.2,
+          "description": "多重技术指标确认参数"
+        },
+        "关键位识别": {
+          "sr_lookback": 50,
+          "level_proximity": 0.001,
+          "description": "支撑阻力位回望50根K线，接近度0.1%"
+        },
+        "信号过滤": {
+          "min_signal_score": 4,
+          "max_signal_score": 6,
+          "description": "最低4分才交易，满分6分"
+        },
+        "风险管理": {
+          "risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 0.1,
+          "take_profit_ratios": [
+            2.0,
+            3.0,
+            5.0
+          ],
+          "position_scaling": [
+            0.5,
+            0.3,
+            0.2
+          ],
+          "description": "每笔交易风险2%，分批止盈"
+        },
+        "min_shadow_body_ratio": 1.669,
+        "max_body_ratio": 0.36,
+        "rsi_oversold": 35,
+        "rsi_overbought": 79,
+        "min_signal_score": 3,
+        "volume_threshold": 1.344
+      },
+      "total_return": 44.89218421713003,
+      "win_rate": 0.7857142857142857,
+      "profit_factor": 7.786424702165199,
+      "max_drawdown": 2.0000000000000075,
+      "total_trades": 14,
+      "avg_signals_per_month": 10.08,
+      "score": 71.67
+    },
+    {
+      "index": 0,
+      "params": {
+        "description": "增强版Pinbar策略配置",
+        "version": "2.0",
+        "形态识别参数": {
+          "min_shadow_body_ratio": 1.8,
+          "max_body_ratio": 0.4,
+          "min_candle_size": 0.002,
+          "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+        },
+        "技术指标参数": {
+          "trend_period": 20,
+          "rsi_period": 14,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "bb_period": 20,
+          "volume_threshold": 1.2,
+          "description": "多重技术指标确认参数"
+        },
+        "关键位识别": {
+          "sr_lookback": 50,
+          "level_proximity": 0.001,
+          "description": "支撑阻力位回望50根K线，接近度0.1%"
+        },
+        "信号过滤": {
+          "min_signal_score": 4,
+          "max_signal_score": 6,
+          "description": "最低4分才交易，满分6分"
+        },
+        "风险管理": {
+          "risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 0.1,
+          "take_profit_ratios": [
+            2.0,
+            3.0,
+            5.0
+          ],
+          "position_scaling": [
+            0.5,
+            0.3,
+            0.2
+          ],
+          "description": "每笔交易风险2%，分批止盈"
+        },
+        "min_shadow_body_ratio": 1.584,
+        "max_body_ratio": 0.489,
+        "rsi_oversold": 26,
+        "rsi_overbought": 65,
+        "min_signal_score": 3,
+        "volume_threshold": 1.477
+      },
+      "total_return": 53.581078720262866,
+      "win_rate": 0.7647058823529411,
+      "profit_factor": 5.396385689829772,
+      "max_drawdown": 5.880800000000004,
+      "total_trades": 17,
+      "avg_signals_per_month": 12.24,
+      "score": 70.85
+    },
+    {
+      "index": 106,
+      "params": {
+        "description": "增强版Pinbar策略配置",
+        "version": "2.0",
+        "形态识别参数": {
+          "min_shadow_body_ratio": 1.8,
+          "max_body_ratio": 0.4,
+          "min_candle_size": 0.002,
+          "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+        },
+        "技术指标参数": {
+          "trend_period": 20,
+          "rsi_period": 14,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "bb_period": 20,
+          "volume_threshold": 1.2,
+          "description": "多重技术指标确认参数"
+        },
+        "关键位识别": {
+          "sr_lookback": 50,
+          "level_proximity": 0.001,
+          "description": "支撑阻力位回望50根K线，接近度0.1%"
+        },
+        "信号过滤": {
+          "min_signal_score": 4,
+          "max_signal_score": 6,
+          "description": "最低4分才交易，满分6分"
+        },
+        "风险管理": {
+          "risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 0.1,
+          "take_profit_ratios": [
+            2.0,
+            3.0,
+            5.0
+          ],
+          "position_scaling": [
+            0.5,
+            0.3,
+            0.2
+          ],
+          "description": "每笔交易风险2%，分批止盈"
+        },
+        "min_shadow_body_ratio": 1.999,
+        "max_body_ratio": 0.353,
+        "rsi_oversold": 30,
+        "rsi_overbought": 72,
+        "min_signal_score": 3,
+        "volume_threshold": 1.188
+      },
+      "total_return": 36.6948664649594,
+      "win_rate": 0.8181818181818182,
+      "profit_factor": 9.400967406902467,
+      "max_drawdown": 2.0,
+      "total_trades": 11,
+      "avg_signals_per_month": 7.92,
+      "score": 69.04
+    },
+    {
+      "index": 208,
+      "params": {
+        "description": "增强版Pinbar策略配置",
+        "version": "2.0",
+        "形态识别参数": {
+          "min_shadow_body_ratio": 1.8,
+          "max_body_ratio": 0.4,
+          "min_candle_size": 0.002,
+          "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+        },
+        "技术指标参数": {
+          "trend_period": 20,
+          "rsi_period": 14,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "bb_period": 20,
+          "volume_threshold": 1.2,
+          "description": "多重技术指标确认参数"
+        },
+        "关键位识别": {
+          "sr_lookback": 50,
+          "level_proximity": 0.001,
+          "description": "支撑阻力位回望50根K线，接近度0.1%"
+        },
+        "信号过滤": {
+          "min_signal_score": 4,
+          "max_signal_score": 6,
+          "description": "最低4分才交易，满分6分"
+        },
+        "风险管理": {
+          "risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 0.1,
+          "take_profit_ratios": [
+            2.0,
+            3.0,
+            5.0
+          ],
+          "position_scaling": [
+            0.5,
+            0.3,
+            0.2
+          ],
+          "description": "每笔交易风险2%，分批止盈"
+        },
+        "min_shadow_body_ratio": 1.7,
+        "max_body_ratio": 0.402,
+        "rsi_oversold": 27,
+        "rsi_overbought": 69,
+        "min_signal_score": 4,
+        "volume_threshold": 1.094
+      },
+      "total_return": 36.69486646495936,
+      "win_rate": 0.8181818181818182,
+      "profit_factor": 8.025634279712419,
+      "max_drawdown": 2.0000000000000027,
+      "total_trades": 11,
+      "avg_signals_per_month": 7.92,
+      "score": 69.04
+    }
+  ],
+  "statistics": {
+    "total_tested": 499,
+    "best_score": 76.65,
+    "avg_score": 46.75460921843688,
+    "best_return": 56.715386449247816,
+    "avg_return": 13.452094418559529,
+    "best_win_rate": 1.0,
+    "avg_win_rate": 0.7431130752818247
+  }
+}

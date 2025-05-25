@@ -1,0 +1,119 @@
+{
+  "pinbar_strategy": {
+    "description": "增强版Pinbar策略配置",
+    "version": "2.0",
+    "形态识别参数": {
+      "min_shadow_body_ratio": 1.8,
+      "max_body_ratio": 0.4,
+      "min_candle_size": 0.002,
+      "description": "影线/实体比例至少1.8，实体不超过40%总范围"
+    },
+    "技术指标参数": {
+      "trend_period": 20,
+      "rsi_period": 14,
+      "rsi_oversold": 30,
+      "rsi_overbought": 70,
+      "bb_period": 20,
+      "volume_threshold": 1.2,
+      "description": "多重技术指标确认参数"
+    },
+    "关键位识别": {
+      "sr_lookback": 50,
+      "level_proximity": 0.001,
+      "description": "支撑阻力位回望50根K线，接近度0.1%"
+    },
+    "信号过滤": {
+      "min_signal_score": 4,
+      "max_signal_score": 6,
+      "description": "最低4分才交易，满分6分"
+    },
+    "风险管理": {
+      "risk_per_trade": 0.02,
+      "stop_loss_atr_multiplier": 0.1,
+      "take_profit_ratios": [
+        2.0,
+        3.0,
+        5.0
+      ],
+      "position_scaling": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "description": "每笔交易风险2%，分批止盈"
+    },
+    "min_shadow_body_ratio": 1.643,
+    "max_body_ratio": 0.394,
+    "rsi_oversold": 28,
+    "rsi_overbought": 67,
+    "min_signal_score": 3,
+    "volume_threshold": 1.957
+  },
+  "参数优化范围": {
+    "min_shadow_body_ratio": {
+      "min": 1.5,
+      "max": 3.0,
+      "step": 0.1,
+      "description": "影线/实体比例优化范围"
+    },
+    "max_body_ratio": {
+      "min": 0.2,
+      "max": 0.5,
+      "step": 0.05,
+      "description": "最大实体比例优化范围"
+    },
+    "rsi_oversold": {
+      "min": 20,
+      "max": 35,
+      "step": 5,
+      "description": "RSI超卖阈值优化范围"
+    },
+    "rsi_overbought": {
+      "min": 65,
+      "max": 80,
+      "step": 5,
+      "description": "RSI超买阈值优化范围"
+    },
+    "min_signal_score": {
+      "min": 3,
+      "max": 5,
+      "step": 1,
+      "description": "最低信号分数优化范围"
+    },
+    "volume_threshold": {
+      "min": 1.0,
+      "max": 2.0,
+      "step": 0.1,
+      "description": "放量确认阈值优化范围"
+    }
+  },
+  "预设配置": {
+    "保守型": {
+      "min_shadow_body_ratio": 2.5,
+      "max_body_ratio": 0.3,
+      "min_signal_score": 5,
+      "rsi_oversold": 25,
+      "rsi_overbought": 75,
+      "volume_threshold": 1.5,
+      "description": "高质量信号，低频交易"
+    },
+    "平衡型": {
+      "min_shadow_body_ratio": 1.8,
+      "max_body_ratio": 0.4,
+      "min_signal_score": 4,
+      "rsi_oversold": 30,
+      "rsi_overbought": 70,
+      "volume_threshold": 1.2,
+      "description": "平衡质量和频率"
+    },
+    "激进型": {
+      "min_shadow_body_ratio": 1.5,
+      "max_body_ratio": 0.45,
+      "min_signal_score": 3,
+      "rsi_oversold": 35,
+      "rsi_overbought": 65,
+      "volume_threshold": 1.0,
+      "description": "更多交易机会，略低质量要求"
+    }
+  }
+}

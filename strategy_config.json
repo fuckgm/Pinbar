@@ -1,0 +1,36 @@
+{
+    "trading_params": {
+        "leverage": 10,
+        "risk_per_trade": 0.01,
+        "stop_loss_pct": 0.015,
+        "take_profit_pct": 0.03,
+        "max_positions": 3,
+        "pinbar_shadow_ratio": 2.0,
+        "pinbar_body_ratio": 0.3,
+        "min_candle_size": 0.001,
+        "sma_fast": 20,
+        "sma_slow": 50,
+        "sma_trend": 100,
+        "trend_strength": 0.01,
+        "rsi_period": 14,
+        "rsi_oversold": 30,
+        "rsi_overbought": 70,
+        "volatility_lookback": 20,
+        "min_volatility": 0.01,
+        "max_volatility": 0.06,
+        "avoid_weekend": true,
+        "trading_hours_start": 8,
+        "trading_hours_end": 22,
+        "use_trailing_stop": true,
+        "trail_activation_pct": 0.015,
+        "trail_percent": 0.6
+    },
+    "backtest_params": {
+        "symbol": "BTCUSDT",
+        "interval": "1h",
+        "start_date": "2024-01-01",
+        "end_date": "2025-05-21",
+        "initial_cash": 20000.0,
+        "commission": 0.00075
+    }
+}

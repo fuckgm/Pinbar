@@ -1,0 +1,1486 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Pinbar策略主程序 - 修复版
+修复信号执行问题
+"""
+
+import sys
+import os
+import pandas as pd
+import numpy as np
+import backtrader as bt
+from typing import Dict, Any, List, Optional, Tuple
+import inquirer
+import json
+from datetime import datetime
+import pickle
+import signal
+
+# 导入自定义模块
+from config import ConfigManager, TradingParams, BacktestParams
+from data_manager import DataManager, CustomDataFeed
+from enhanced_signal_generator import EnhancedPinbarDetector, PinbarSignal
+from parameter_optimizer import ParameterOptimizer
+from dynamic_leverage_manager import DynamicLeverageManager
+from report_generator import ReportGenerator
+from enhanced_report_generator import EnhancedReportGenerator
+
+# 信号处理函数
+def signal_handler(sig, frame):
+    """处理Ctrl+C信号"""
+    print('\n👋 程序被用户中断')
+    sys.exit(0)
+
+# 安全输入函数，支持ESC返回
+def safe_list_input(message, choices):
+    """安全的列表输入，支持ESC返回"""
+    try:
+        return inquirer.list_input(message, choices=choices)
+    except KeyboardInterrupt:
+        print("\n🔙 返回上层菜单")
+        return None
+
+def safe_confirm(message, default=True):
+    """安全的确认输入，支持ESC返回"""
+    try:
+        return inquirer.confirm(message, default=default)
+    except KeyboardInterrupt:
+        print("\n🔙 返回上层菜单")
+        return None
+
+def safe_text_input(message, default=""):
+    """安全的文本输入，支持ESC返回"""
+    try:
+        return inquirer.text(message, default=default)
+    except KeyboardInterrupt:
+        print("\n🔙 返回上层菜单")
+        return None
+
+# 本地数据管理函数
+def get_local_data_summary() -> Dict[str, List[str]]:
+    """获取本地已下载数据摘要"""
+    data_dir = "data"
+    local_data = {}
+    
+    if not os.path.exists(data_dir):
+        return local_data
+    
+    for symbol_dir in os.listdir(data_dir):
+        symbol_path = os.path.join(data_dir, symbol_dir)
+        if os.path.isdir(symbol_path) and symbol_dir != 'cache':
+            intervals = []
+            for file in os.listdir(symbol_path):
+                if file.endswith('.csv') or file.endswith('.pkl'):
+                    interval = file.replace(f"{symbol_dir}_", "").replace(".csv", "").replace(".pkl", "")
+                    if interval not in intervals:
+                        intervals.append(interval)
+            
+            if intervals:
+                local_data[symbol_dir] = sorted(intervals)
+    
+    return local_data
+
+def load_local_data(symbol: str, interval: str) -> Optional[pd.DataFrame]:
+    """加载本地数据"""
+    data_dir = "data"
+    symbol_path = os.path.join(data_dir, symbol)
+    
+    pkl_file = os.path.join(symbol_path, f"{symbol}_{interval}.pkl")
+    csv_file = os.path.join(symbol_path, f"{symbol}_{interval}.csv")
+    
+    try:
+        if os.path.exists(pkl_file):
+            print(f"📁 加载本地数据: {symbol} {interval} (pickle)")
+            df = pd.read_pickle(pkl_file)
+        elif os.path.exists(csv_file):
+            print(f"📁 加载本地数据: {symbol} {interval} (csv)")
+            df = pd.read_csv(csv_file)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+        else:
+            print(f"❌ 未找到本地数据: {symbol} {interval}")
+            return None
+        
+        if df is None or len(df) < 100:
+            print(f"❌ 数据不足: {symbol} {interval}")
+            return None
+        
+        print(f"✅ 成功加载 {len(df)} 条数据")
+        return df
+        
+    except Exception as e:
+        print(f"❌ 加载数据失败: {e}")
+        return None
+
+def interactive_select_local_data() -> Tuple[Optional[str], Optional[str]]:
+    """交互式选择本地数据"""
+    local_data = get_local_data_summary()
+    
+    if not local_data:
+        print("❌ 未找到本地数据，请先使用数据下载器下载数据")
+        return None, None
+    
+    print(f"\n📁 发现 {len(local_data)} 个币种的本地数据")
+    
+    symbol_choices = []
+    for symbol, intervals in local_data.items():
+        interval_str = ', '.join(intervals[:3])
+        if len(intervals) > 3:
+            interval_str += f'... (共{len(intervals)}个)'
+        symbol_choices.append((f"{symbol:<12} [{interval_str}]", symbol))
+    
+    selected_symbol = safe_list_input("选择币种", choices=symbol_choices)
+    if selected_symbol is None:
+        return None, None
+    
+    available_intervals = local_data[selected_symbol]
+    interval_choices = [(f"{interval}", interval) for interval in available_intervals]
+    
+    selected_interval = safe_list_input(f"选择 {selected_symbol} 的时间周期", choices=interval_choices)
+    if selected_interval is None:
+        return None, None
+    
+    return selected_symbol, selected_interval
+
+class EnhancedPinbarStrategy(bt.Strategy):
+    """
+    增强版Pinbar策略 - 修复版
+    """
+    
+    def __init__(self, trading_params: TradingParams, 
+                 detector_config: Dict[str, Any] = None,
+                 use_dynamic_leverage: bool = False):
+        
+        print("🚀 初始化增强版Pinbar策略...")
+        
+        # 基础参数
+        self.trading_params = trading_params
+        self.use_dynamic_leverage = use_dynamic_leverage
+        
+        # 交易成本参数
+        self.commission_rate = 0.0005  # 0.05% 手续费
+        self.funding_rate = 0.0001     # 0.01% 资金费率（8小时）
+        self.slippage_rate = 0.0002    # 0.02% 滑点
+        self.funding_interval_hours = 8  # 资金费率收取间隔
+        
+        # 初始化信号检测器
+        self.pinbar_detector = EnhancedPinbarDetector(detector_config or self._get_default_detector_config())
+        
+        # 计算最小所需K线数量
+        self.min_required_bars = max(
+            self.pinbar_detector.trend_period,
+            self.pinbar_detector.rsi_period,
+            self.pinbar_detector.bb_period,
+            self.pinbar_detector.adx_period,
+            self.pinbar_detector.atr_period,
+            50  # 最少需要50根K线
+        )
+        
+        # 动态杠杆管理器（可选）
+        if use_dynamic_leverage:
+            self.leverage_manager = DynamicLeverageManager()
+            print("✅ 启用动态杠杆管理")
+        
+        # 交易状态管理
+        self.active_trades = {}
+        self.trade_counter = 0
+        self.trade_history = []
+        self.signal_history = []
+        self.executed_signals = []
+        
+        # 统计信息
+        self.account_initial = self.broker.getcash()
+        self.account_peak = self.account_initial
+        self.max_dd = 0.0
+        self.winning_trades = 0
+        self.losing_trades = 0
+        self.total_profits = 0.0
+        self.total_losses = 0.0
+        
+        # 信号质量统计
+        self.signal_stats = {
+            'total_signals': 0,
+            'executed_signals': 0,
+            'trend_aligned_signals': 0,
+            'high_quality_signals': 0,
+            'signal_success_rate': 0.0
+        }
+        
+        # 数据缓存
+        self.data_cache = []
+        self.last_signal_check = 0
+        
+        print(f"✅ 策略初始化完成:")
+        print(f"   - 动态杠杆: {use_dynamic_leverage}")
+        print(f"   - 最小K线数: {self.min_required_bars}")
+        print(f"   - 初始资金: {self.account_initial:,.2f} USDT")
+
+    def _get_default_detector_config(self) -> Dict[str, Any]:
+        """获取默认检测器配置"""
+        return {
+            'min_shadow_body_ratio': 2.0,
+            'max_body_ratio': 0.35,
+            'min_candle_size': 0.003,
+            'trend_period': 20,
+            'rsi_period': 14,
+            'rsi_oversold': 30,
+            'rsi_overbought': 70,
+            'bb_period': 20,
+            'volume_threshold': 1.3,
+            'sr_lookback': 50,
+            'level_proximity': 0.002,
+            'min_signal_score': 3,
+            'adx_period': 14,
+            'adx_threshold': 25,
+            'atr_period': 14,
+            'atr_percentile': 30,
+            'volume_ma_period': 20,
+            'volume_threshold_ratio': 0.7,
+            'min_consolidation_bars': 10,
+            'large_move_threshold': 0.05,
+            'large_move_exclude_bars': 3
+        }
+
+    def prenext(self):
+        """数据不足时调用"""
+        self._update_data_cache()
+
+    def next(self):
+        """主交易逻辑"""
+        # 1. 更新当前K线数据到缓存
+        self._update_data_cache()
+        
+        # 2. 检查数据是否充足
+        if len(self.data_cache) < self.min_required_bars:
+            return
+            
+        # 3. 管理现有持仓
+        self._manage_active_trades()
+        
+        # 4. 检查新信号
+        self._check_for_new_signals()
+        
+        # 5. 更新账户统计
+        self._update_account_stats()
+
+    def _update_data_cache(self):
+        """更新数据缓存"""
+        current_data = {
+            'timestamp': self.data.datetime.datetime(0),
+            'open': self.data.open[0],
+            'high': self.data.high[0],
+            'low': self.data.low[0],
+            'close': self.data.close[0],
+            'volume': self.data.volume[0]
+        }
+        
+        self.data_cache.append(current_data)
+        
+        # 保留最近1000根K线数据
+        if len(self.data_cache) > 1000:
+            self.data_cache.pop(0)
+
+    def _check_for_new_signals(self):
+        """检查当前K线是否产生新信号 - 修复版"""
+        
+        # 检查是否达到最大持仓数
+        if len(self.active_trades) >= self.trading_params.max_positions:
+            return
+        
+        # 准备数据
+        if len(self.data_cache) < self.min_required_bars:
+            return
+
+        df = pd.DataFrame(self.data_cache)
+        
+        # 只检测到倒数第二根K线（已完成的K线）
+        df_for_signal = df[:-1]
+        
+        if len(df_for_signal) < self.min_required_bars:
+            return
+        
+        try:
+            # 使用增强信号检测器
+            all_signals = self.pinbar_detector.detect_pinbar_patterns(df_for_signal)
+            
+            if all_signals:
+                # 只处理最新完成K线的信号
+                current_bar_index = len(df_for_signal) - 1
+                new_signals = [s for s in all_signals if s.index == current_bar_index]
+                
+                for signal in new_signals:
+                    # 记录信号统计
+                    self.signal_stats['total_signals'] += 1
+                    
+                    signal_info = {
+                        'timestamp': signal.timestamp,
+                        'type': signal.type,
+                        'direction': signal.direction,
+                        'confidence_score': signal.confidence_score,
+                        'signal_strength': signal.signal_strength,
+                        'trend_alignment': signal.trend_alignment,
+                        'entry_reason': signal.entry_reason,
+                        'executed': False,
+                        'execution_reason': ''
+                    }
+                    
+                    # 统计信号质量
+                    if signal.trend_alignment:
+                        self.signal_stats['trend_aligned_signals'] += 1
+                    
+                    if signal.confidence_score >= 0.7 and signal.signal_strength >= 4:
+                        self.signal_stats['high_quality_signals'] += 1
+                    
+                    # 判断是否执行信号 - 放宽条件
+                    if self._should_execute_signal_relaxed(signal):
+                        print(f"🎯 执行信号: {signal.type} {signal.direction} @ {signal.close_price:.4f}")
+                        self._execute_signal(signal)
+                        signal_info['executed'] = True
+                        signal_info['execution_reason'] = '信号质量达标'
+                        self.signal_stats['executed_signals'] += 1
+                    else:
+                        signal_info['execution_reason'] = '信号质量不足'
+                    
+                    self.signal_history.append(signal_info)
+                    
+        except Exception as e:
+            print(f"❌ 信号检测失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _should_execute_signal_relaxed(self, signal: PinbarSignal) -> bool:
+        """判断是否应该执行信号 - 放宽版本"""
+        print(f"🔍 检查信号执行条件: {signal.type} {signal.direction}")
+        print(f"    置信度: {signal.confidence_score:.2f}, 强度: {signal.signal_strength}")
+
+        # 1. 基础质量检查 - 大幅放宽
+        if signal.confidence_score < 0.1:  # 从0.3降低到0.1
+            print(f"❌ 信号质量不足: 置信度{signal.confidence_score:.2f} < 0.1")
+            return False
+        
+        if signal.signal_strength < 1:  # 从2降低到1
+            print(f"❌ 信号强度不足: {signal.signal_strength} < 1")
+            return False
+        
+        # 2. 检查资金是否充足
+        current_cash = self.broker.getcash()
+        if current_cash < 100:  # 至少需要100 USDT
+            print(f"❌ 资金不足: {current_cash:.2f} < 100")
+            return False
+        
+        # 3. 简化的风险检查
+        current_price = signal.close_price
+        stop_distance = abs(current_price - signal.stop_loss)
+        
+        if stop_distance <= 0:
+            print(f"❌ 止损距离无效: {stop_distance}")
+            return False
+        
+        # 4. 检查风险回报比
+        take_profit_distance = abs(signal.take_profit_1 - current_price)
+        risk_reward_ratio = take_profit_distance / stop_distance
+        
+        if risk_reward_ratio < 1.0:  # 至少1:1
+            print(f"❌ 风险回报比不足: {risk_reward_ratio:.2f} < 1.0")
+            return False
+        
+        print(f"✅ 信号通过检查，准备执行")
+        return True
+
+    def _execute_signal(self, signal: PinbarSignal):
+        """执行信号开仓 - 修复版"""
+        print(f"📊 开始执行信号: {signal.type} {signal.direction}")
+        
+        current_price = self.data.close[0]
+        direction = signal.direction
+        
+        # 考虑滑点的实际成交价
+        if direction == 'buy':
+            actual_entry_price = current_price * (1 + self.slippage_rate)
+        else:
+            actual_entry_price = current_price * (1 - self.slippage_rate)
+        
+        # 计算杠杆
+        leverage = self._calculate_dynamic_leverage(signal)
+        
+        # 计算仓位大小 - 简化版本
+        cash = self.broker.getcash()
+        risk_amount = cash * self.trading_params.risk_per_trade
+        
+        # 止损距离
+        stop_distance = abs(actual_entry_price - signal.stop_loss)
+        
+        # 计算仓位大小
+        # 仓位大小 = 风险金额 / 止损距离
+        if stop_distance > 0:
+            position_value = risk_amount / (stop_distance / actual_entry_price)
+            position_size = position_value / actual_entry_price
+            
+            # 考虑杠杆
+            position_size = min(position_size * leverage, cash * 0.9 / actual_entry_price)
+        else:
+            print(f"❌ 止损距离为0，无法计算仓位")
+            return
+        
+        # 最小仓位检查
+        min_position_value = 10  # 最小10 USDT
+        if position_size * actual_entry_price < min_position_value:
+            position_size = min_position_value / actual_entry_price
+        
+        print(f"💰 仓位计算:")
+        print(f"    现金: {cash:.2f} USDT")
+        print(f"    风险金额: {risk_amount:.2f} USDT")
+        print(f"    仓位大小: {position_size:.6f}")
+        print(f"    仓位价值: {position_size * actual_entry_price:.2f} USDT")
+        print(f"    杠杆: {leverage}x")
+        
+        # 执行开仓
+        try:
+            if direction == 'buy':
+                print(f"📈 执行买入订单: {position_size:.6f} @ {actual_entry_price:.4f}")
+                order = self.buy(size=position_size)
+            else:
+                print(f"📉 执行卖出订单: {position_size:.6f} @ {actual_entry_price:.4f}")
+                order = self.sell(size=position_size)
+            
+            if order is None:
+                print(f"❌ 订单执行失败")
+                return
+            
+            # 记录交易信息
+            self.trade_counter += 1
+            trade_id = f"T{self.trade_counter:04d}"
+            
+            # 计算手续费
+            commission_cost = position_size * actual_entry_price * self.commission_rate
+            
+            self.active_trades[trade_id] = {
+                'order': order,
+                'direction': direction,
+                'entry_price': current_price,
+                'actual_entry_price': actual_entry_price,
+                'entry_time': self.data.datetime.datetime(),
+                'size': position_size,
+                'stop_loss': signal.stop_loss,
+                'take_profit_1': signal.take_profit_1,
+                'take_profit_2': signal.take_profit_2,
+                'take_profit_3': signal.take_profit_3,
+                'leverage': leverage,
+                'signal_info': signal,
+                'trailing_stop': signal.stop_loss,
+                'trailing_activated': False,
+                'highest_price': actual_entry_price if direction == 'buy' else 0,
+                'lowest_price': actual_entry_price if direction == 'sell' else float('inf'),
+                'commission_paid': commission_cost,
+                'funding_paid': 0,
+                'total_costs': commission_cost,
+                'position_amount': position_size * actual_entry_price,
+                'signal_type': signal.type,
+                'signal_strength': signal.signal_strength,
+                'confidence_score': signal.confidence_score,
+                'trend_alignment': signal.trend_alignment,
+                'entry_reason': signal.entry_reason
+            }
+            
+            print(f"✅ 成功开仓 {trade_id}: {direction} @ {actual_entry_price:.4f}")
+            print(f"    杠杆: {leverage}x | 信号: {signal.type} | 强度: {signal.signal_strength}")
+            print(f"    置信度: {signal.confidence_score:.2f} | 止损: {signal.stop_loss:.4f}")
+            
+        except Exception as e:
+            print(f"❌ 执行开仓失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _calculate_dynamic_leverage(self, signal: PinbarSignal) -> float:
+        """计算动态杠杆"""
+        base_leverage = self.trading_params.leverage
+        
+        if not self.use_dynamic_leverage:
+            return base_leverage
+        
+        try:
+            # 根据信号质量调整杠杆
+            quality_factor = signal.confidence_score * (signal.signal_strength / 5.0)
+            trend_bonus = 1.1 if signal.trend_alignment else 0.9
+            
+            adjusted_leverage = base_leverage * quality_factor * trend_bonus
+            
+            # 限制杠杆范围
+            return max(1, min(base_leverage, int(adjusted_leverage)))
+            
+        except Exception as e:
+            print(f"❌ 动态杠杆计算失败: {e}")
+            return base_leverage
+
+    def _manage_active_trades(self):
+        """管理现有持仓"""
+        current_price = self.data.close[0]
+        current_time = self.data.datetime.datetime(0)
+        trades_to_close = []
+        
+        for trade_id, trade_info in self.active_trades.items():
+            # 检查止损
+            if self._check_stop_loss(trade_info, current_price):
+                trades_to_close.append((trade_id, "止损"))
+                continue
+            
+            # 检查止盈
+            exit_reason = self._check_take_profit(trade_info, current_price)
+            if exit_reason:
+                trades_to_close.append((trade_id, exit_reason))
+        
+        # 执行平仓
+        for trade_id, reason in trades_to_close:
+            self._close_position(trade_id, reason)
+
+    def _check_stop_loss(self, trade_info: Dict[str, Any], current_price: float) -> bool:
+        """检查是否触发止损"""
+        direction = trade_info['direction']
+        stop_loss = trade_info['stop_loss']
+        
+        if direction == 'buy' and current_price <= stop_loss:
+            return True
+        elif direction == 'sell' and current_price >= stop_loss:
+            return True
+        
+        return False
+
+    def _check_take_profit(self, trade_info: Dict[str, Any], current_price: float) -> Optional[str]:
+        """检查是否触发止盈"""
+        direction = trade_info['direction']
+        tp1 = trade_info['take_profit_1']
+        
+        if direction == 'buy' and current_price >= tp1:
+            return "止盈"
+        elif direction == 'sell' and current_price <= tp1:
+            return "止盈"
+        
+        return None
+
+    def _close_position(self, trade_id: str, reason: str):
+        """平仓"""
+        if trade_id not in self.active_trades:
+            return
+        
+        trade_info = self.active_trades[trade_id]
+        current_price = self.data.close[0]
+        direction = trade_info['direction']
+        
+        # 考虑滑点的实际成交价
+        if direction == 'buy':
+            actual_exit_price = current_price * (1 - self.slippage_rate)
+        else:
+            actual_exit_price = current_price * (1 + self.slippage_rate)
+        
+        # 计算平仓手续费
+        exit_commission = trade_info['size'] * actual_exit_price * self.commission_rate
+        
+        # 执行平仓
+        try:
+            if direction == 'buy':
+                self.sell(size=trade_info['size'])
+            else:
+                self.buy(size=trade_info['size'])
+            
+            # 计算收益
+            if direction == 'buy':
+                gross_profit = (actual_exit_price - trade_info['actual_entry_price']) * trade_info['size']
+            else:
+                gross_profit = (trade_info['actual_entry_price'] - actual_exit_price) * trade_info['size']
+            
+            # 总成本
+            total_costs = trade_info['total_costs'] + exit_commission
+            net_profit = gross_profit - total_costs
+            
+            # 记录交易结果
+            trade_record = {
+                'trade_id': trade_id,
+                'direction': direction,
+                'entry_time': trade_info['entry_time'],
+                'exit_time': self.data.datetime.datetime(),
+                'entry_price': trade_info['actual_entry_price'],
+                'exit_price': actual_exit_price,
+                'size': trade_info['size'],
+                'gross_profit': gross_profit,
+                'net_profit': net_profit,
+                'profit': net_profit,
+                'profit_pct': net_profit / (trade_info['actual_entry_price'] * trade_info['size']) * 100,
+                'reason': reason,
+                'leverage': trade_info['leverage'],
+                'commission_costs': trade_info['commission_paid'] + exit_commission,
+                'funding_costs': trade_info['funding_paid'],
+                'total_costs': total_costs,
+                'signal_type': trade_info['signal_type'],
+                'signal_strength': trade_info['signal_strength'],
+                'confidence_score': trade_info['confidence_score'],
+                'trend_alignment': trade_info['trend_alignment'],
+                'entry_reason': trade_info['entry_reason']
+            }
+            
+            self.trade_history.append(trade_record)
+            
+            # 更新统计
+            if net_profit > 0:
+                self.winning_trades += 1
+                self.total_profits += net_profit
+            else:
+                self.losing_trades += 1
+                self.total_losses += abs(net_profit)
+            
+            del self.active_trades[trade_id]
+            
+            print(f"🔄 平仓 {trade_id}: {direction} @ {actual_exit_price:.4f}")
+            print(f"    净利: {net_profit:.2f} USDT | 原因: {reason}")
+            
+        except Exception as e:
+            print(f"❌ 平仓失败: {e}")
+
+    def _update_account_stats(self):
+        """更新账户统计信息"""
+        current_value = self.broker.getvalue()
+        
+        if current_value > self.account_peak:
+            self.account_peak = current_value
+        
+        drawdown = (self.account_peak - current_value) / self.account_peak
+        if drawdown > self.max_dd:
+            self.max_dd = drawdown
+
+    def stop(self):
+        """回测结束处理"""
+        # 平掉所有持仓
+        for trade_id in list(self.active_trades.keys()):
+            self._close_position(trade_id, "回测结束")
+        
+        # 计算最终信号统计
+        if self.signal_stats['total_signals'] > 0:
+            self.signal_stats['signal_execution_rate'] = (
+                self.signal_stats['executed_signals'] / self.signal_stats['total_signals'] * 100
+            )
+        
+        if self.signal_stats['executed_signals'] > 0:
+            winning_signals = sum(1 for t in self.trade_history if t['profit'] > 0)
+            self.signal_stats['signal_success_rate'] = (
+                winning_signals / self.signal_stats['executed_signals'] * 100
+            )
+        
+        print(f"\n📊 回测结束统计:")
+        print(f"    总信号: {self.signal_stats['total_signals']}")
+        print(f"    执行信号: {self.signal_stats['executed_signals']}")
+        print(f"    执行率: {self.signal_stats.get('signal_execution_rate', 0):.1f}%")
+        print(f"    总交易: {len(self.trade_history)}")
+        print(f"    盈利交易: {self.winning_trades}")
+
+# 运行回测函数
+def run_enhanced_backtest(data: pd.DataFrame, trading_params: TradingParams, 
+                         backtest_params: BacktestParams,
+                         detector_config: Dict[str, Any] = None,
+                         use_dynamic_leverage: bool = False) -> Dict[str, Any]:
+    """运行增强版回测"""
+    print(f"🚀 开始增强版回测: {backtest_params.symbol} {backtest_params.interval}")
+    
+    # 设置Backtrader环境
+    cerebro = bt.Cerebro()
+    
+    # 添加数据
+    data_feed = CustomDataFeed(dataname=data)
+    cerebro.adddata(data_feed)
+    
+    # 添加增强策略
+    cerebro.addstrategy(EnhancedPinbarStrategy, 
+                       trading_params=trading_params,
+                       detector_config=detector_config,
+                       use_dynamic_leverage=use_dynamic_leverage)
+    
+    # 设置初始资金和手续费
+    cerebro.broker.setcash(backtest_params.initial_cash)
+    cerebro.broker.setcommission(commission=backtest_params.commission)
+    
+    # 运行回测
+    print(f'💰 初始资金: {backtest_params.initial_cash:,.2f} USDT')
+    results = cerebro.run()
+    strategy = results[0]
+    
+    final_value = cerebro.broker.getvalue()
+    total_return = (final_value - backtest_params.initial_cash) / backtest_params.initial_cash * 100
+    
+    print(f'💰 最终资金: {final_value:,.2f} USDT')
+    print(f'📈 总收益率: {total_return:.2f}%')
+    
+    # 计算详细统计
+    total_trades = len(strategy.trade_history)
+    signal_stats = strategy.signal_stats
+    
+    if total_trades > 0:
+        win_rate = (strategy.winning_trades / total_trades * 100)
+        avg_profit = strategy.total_profits / strategy.winning_trades if strategy.winning_trades > 0 else 0
+        avg_loss = strategy.total_losses / strategy.losing_trades if strategy.losing_trades > 0 else 0
+        profit_factor = avg_profit / avg_loss if avg_loss > 0 else 0
+        
+        # 杠杆使用分析
+        if strategy.trade_history:
+            leverages = [t.get('leverage', 1) for t in strategy.trade_history]
+            avg_leverage = np.mean(leverages)
+            max_leverage = max(leverages)
+            
+            # 信号质量分析
+            signal_strengths = [t.get('signal_strength', 0) for t in strategy.trade_history]
+            confidence_scores = [t.get('confidence_score', 0) for t in strategy.trade_history]
+            trend_alignments = [t.get('trend_alignment', False) for t in strategy.trade_history]
+            
+            avg_signal_strength = np.mean(signal_strengths)
+            avg_confidence = np.mean(confidence_scores)
+            trend_alignment_rate = sum(trend_alignments) / len(trend_alignments) * 100
+        else:
+            avg_leverage = max_leverage = 1
+            avg_signal_strength = avg_confidence = trend_alignment_rate = 0
+    else:
+        win_rate = profit_factor = 0
+        avg_leverage = max_leverage = 1
+        avg_signal_strength = avg_confidence = trend_alignment_rate = 0
+    
+    # 夏普比率
+    if strategy.trade_history:
+        returns = [trade['profit'] for trade in strategy.trade_history]
+        sharpe_ratio = np.mean(returns) / np.std(returns) if np.std(returns) > 0 else 0
+    else:
+        sharpe_ratio = 0
+    
+    # 打印信号质量统计
+    print(f"\n📊 信号质量统计:")
+    print(f"   总信号数: {signal_stats['total_signals']}")
+    print(f"   执行信号数: {signal_stats['executed_signals']}")
+    print(f"   执行率: {signal_stats.get('signal_execution_rate', 0):.1f}%")
+    print(f"   信号成功率: {signal_stats.get('signal_success_rate', 0):.1f}%")
+    
+    return {
+        'initial_cash': backtest_params.initial_cash,
+        'final_value': final_value,
+        'total_return': total_return,
+        'total_trades': total_trades,
+        'win_trades': strategy.winning_trades,
+        'lose_trades': strategy.losing_trades,
+        'win_rate': win_rate,
+        'profit_factor': profit_factor,
+        'max_drawdown': strategy.max_dd,
+        'sharpe_ratio': sharpe_ratio,
+        'avg_leverage': avg_leverage,
+        'max_leverage': max_leverage,
+        'trades': strategy.trade_history,
+        'signals': strategy.signal_history,
+        'executed_signals': strategy.executed_signals,
+        'use_dynamic_leverage': use_dynamic_leverage,
+        'signal_stats': signal_stats,
+        'avg_signal_strength': avg_signal_strength,
+        'avg_confidence_score': avg_confidence,
+        'trend_alignment_rate': trend_alignment_rate
+    }
+
+# 其他函数保持不变...
+def parameter_optimization(config_manager: ConfigManager, data_manager: DataManager):
+    """参数优化功能"""
+    print("\n🔧 智能参数优化模式")
+    print("=" * 50)
+    
+    # 选择数据源
+    data_source_choices = [
+        ('📁 使用本地下载数据', 'local'),
+        ('🌐 在线获取数据', 'online')
+    ]
+    
+    data_source = safe_list_input("选择数据源", choices=data_source_choices)
+    if data_source is None:
+        return
+    
+    # 选择优化类型
+    optimization_choices = [
+        ('🎯 网格搜索 (全面但耗时)', 'grid'),
+        ('🎲 随机搜索 (快速采样)', 'random'),
+        ('📋 预设配置测试', 'preset')
+    ]
+    
+    optimization_type = safe_list_input("选择优化方式", choices=optimization_choices)
+    if optimization_type is None:
+        return
+    
+    # 获取数据
+    if data_source == 'local':
+        symbol, interval = interactive_select_local_data()
+        if not symbol or not interval:
+            print("❌ 未选择有效数据")
+            return
+        
+        data = load_local_data(symbol, interval)
+        if data is None:
+            print("❌ 数据加载失败")
+            return
+    else:
+        # 在线数据
+        symbol = config_manager.backtest_params.symbol
+        print(f"📊 获取 {symbol} 数据...")
+        
+        data = data_manager.get_historical_data(
+            symbol=symbol,
+            interval=config_manager.backtest_params.interval,
+            start_date=config_manager.backtest_params.start_date,
+            end_date=config_manager.backtest_params.end_date
+        )
+        
+        if data is None or len(data) < 100:
+            print("❌ 数据获取失败或数据不足")
+            return
+    
+    # 创建参数优化器
+    optimizer = ParameterOptimizer()
+    
+    # 设置优化范围
+    if optimization_type == 'grid':
+        max_workers = safe_text_input("并行进程数 (默认4)", default="4")
+        try:
+            max_workers = int(max_workers)
+        except:
+            max_workers = 4
+    else:
+        max_workers = 2
+    
+    print(f"\n🚀 开始智能参数优化...")
+    print(f"📊 优化方式: {optimization_type}")
+    print(f"📈 数据长度: {len(data)} 条")
+    print(f"⚡ 并行进程: {max_workers}")
+    
+    # 执行优化
+    try:
+        optimization_results = optimizer.optimize_parameters(
+            data=data,
+            optimization_type=optimization_type,
+            max_workers=max_workers
+        )
+        
+        if optimization_results:
+            # 显示结果
+            optimizer.print_optimization_results(optimization_results)
+            
+            # 询问是否应用最佳参数
+            apply_best = safe_confirm("🎯 是否应用最佳参数到配置文件?", default=True)
+            if apply_best:
+                optimizer.apply_best_params(optimization_results)
+            
+            # 询问是否保存结果
+            save_results = safe_confirm("💾 是否保存优化结果?", default=True)
+            if save_results:
+                optimizer.save_optimization_results(optimization_results)
+        else:
+            print("❌ 参数优化失败")
+            
+    except Exception as e:
+        print(f"❌ 参数优化过程出错: {e}")
+        import traceback
+        traceback.print_exc()
+
+def quick_backtest(config_manager: ConfigManager, data_manager: DataManager, 
+                  report_generator: ReportGenerator):
+    """快速回测 - 增强版"""
+    print("\n🚀 快速回测模式（增强版）")
+    
+    # 选择数据源
+    data_source_choices = [
+        ('📁 使用本地下载数据', 'local'),
+        ('🌐 在线获取数据', 'online')
+    ]
+    
+    data_source = safe_list_input("选择数据源", choices=data_source_choices)
+    if data_source is None:
+        return
+    
+    # 选择增强功能
+    use_dynamic_leverage = safe_confirm("🎯 是否使用动态杠杆管理?", default=True)
+    
+    trading_params = config_manager.trading_params
+    backtest_params = config_manager.backtest_params
+    
+    # 获取数据
+    if data_source == 'local':
+        symbol, interval = interactive_select_local_data()
+        if not symbol or not interval:
+            print("❌ 未选择有效数据")
+            return
+        
+        backtest_params.symbol = symbol
+        backtest_params.interval = interval
+        data = load_local_data(symbol, interval)
+        if data is None:
+            print("❌ 数据加载失败")
+            return
+    else:
+        # 在线数据 - 只提供选择，不提供输入
+        try:
+            # 获取热门币种列表
+            print("📊 获取热门币种列表...")
+            all_symbols = data_manager.get_top_symbols(20)
+            
+            if not all_symbols:
+                print("⚠️ 获取币种列表失败，使用默认列表")
+                all_symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 
+                              'SOLUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'MATICUSDT']
+            
+            # 创建选择列表（只显示前10个热门币种）
+            symbol_choices = []
+            for i, symbol in enumerate(all_symbols[:10], 1):
+                symbol_choices.append((f"{i:2d}. {symbol}", symbol))
+            
+            # 选择币种
+            selected_symbol = safe_list_input("选择交易对", choices=symbol_choices)
+            if selected_symbol is None:
+                return
+            
+            backtest_params.symbol = selected_symbol
+            
+        except Exception as e:
+            print(f"❌ 获取币种列表失败: {e}")
+            print("使用默认币种BTCUSDT")
+            backtest_params.symbol = 'BTCUSDT'
+        
+        # 选择时间周期
+        interval_choices = [
+            ('1分钟 (1m)', '1m'),
+            ('5分钟 (5m)', '5m'),
+            ('15分钟 (15m)', '15m'),
+            ('30分钟 (30m)', '30m'),
+            ('1小时 (1h)', '1h'),
+            ('4小时 (4h)', '4h'),
+            ('1天 (1d)', '1d')
+        ]
+        
+        selected_interval = safe_list_input("选择时间周期", choices=interval_choices)
+        if selected_interval is None:
+            selected_interval = '1h'  # 默认1小时
+        
+        backtest_params.interval = selected_interval
+        
+        print(f"📊 获取 {backtest_params.symbol} {backtest_params.interval} 数据...")
+        data = data_manager.get_historical_data(
+            symbol=backtest_params.symbol,
+            interval=backtest_params.interval,
+            start_date=backtest_params.start_date,
+            end_date=backtest_params.end_date
+        )
+        
+        if data is None or len(data) < 100:
+            print("❌ 数据获取失败或数据不足")
+            return
+    
+    # 显示数据信息
+    print(f"\n📊 数据信息:")
+    print(f"  币种: {backtest_params.symbol}")
+    print(f"  周期: {backtest_params.interval}")
+    print(f"  数据量: {len(data)} 条")
+    if 'timestamp' in data.columns:
+        print(f"  时间范围: {data['timestamp'].min()} ~ {data['timestamp'].max()}")
+    
+    # 运行增强版回测
+    print(f"\n🚀 开始回测...")
+    results = run_enhanced_backtest(
+        data=data, 
+        trading_params=trading_params, 
+        backtest_params=backtest_params,
+        use_dynamic_leverage=use_dynamic_leverage
+    )
+    
+    # 生成报告配置
+    config_dict = {
+        'symbol': backtest_params.symbol,
+        'interval': backtest_params.interval,
+        'leverage': trading_params.leverage,
+        'risk_per_trade': trading_params.risk_per_trade,
+        'stop_loss_pct': trading_params.stop_loss_pct,
+        'take_profit_pct': trading_params.take_profit_pct,
+        'data_source': data_source,
+        'use_dynamic_leverage': use_dynamic_leverage,
+        # 新增信号质量信息
+        'signal_execution_rate': results.get('signal_stats', {}).get('signal_execution_rate', 0),
+        'avg_signal_strength': results.get('avg_signal_strength', 0),
+        'avg_confidence_score': results.get('avg_confidence_score', 0),
+        'trend_alignment_rate': results.get('trend_alignment_rate', 0),
+        'total_signals': results.get('signal_stats', {}).get('total_signals', 0),
+        'high_quality_signals': results.get('signal_stats', {}).get('high_quality_signals', 0)
+    }
+    
+    # 生成增强版报告
+    print("\n📊 自动生成增强版回测报告...")
+    try:
+        enhanced_generator = EnhancedReportGenerator()
+        report_path = enhanced_generator.generate_enhanced_backtest_report(data, results, config_dict)
+        
+        print("🚀 自动在浏览器中打开报告...")
+        enhanced_generator.open_report_in_browser(report_path)
+        
+    except Exception as e:
+        print(f"❌ 增强版报告生成失败: {e}")
+        print("🔄 尝试生成标准报告...")
+        try:
+            report_path = report_generator.generate_backtest_report(data, results, config_dict)
+            auto_open = safe_confirm("是否在浏览器中打开标准报告?", default=True)
+            if auto_open:
+                report_generator.open_report_in_browser(report_path)
+        except Exception as e2:
+            print(f"❌ 标准报告也生成失败: {e2}")
+    
+    print("🔙 返回主菜单")
+
+def custom_backtest(config_manager: ConfigManager, data_manager: DataManager,
+                   report_generator: ReportGenerator):
+    """自定义配置回测 - 增强版"""
+    print("\n⚙️ 自定义配置回测（增强版）")
+    
+    # 选择数据源
+    data_source_choices = [
+        ('📁 使用本地下载数据', 'local'),
+        ('🌐 在线获取数据', 'online')
+    ]
+    
+    data_source = safe_list_input("选择数据源", choices=data_source_choices)
+    if data_source is None:
+        return
+    
+    # 交互式配置参数
+    config_manager.interactive_config()
+    config_manager.print_current_config()
+    
+    # 选择增强功能
+    use_dynamic_leverage = safe_confirm("🎯 是否使用动态杠杆管理?", default=True)
+    
+    if not config_manager.validate_config():
+        continue_anyway = safe_confirm("配置存在问题，是否继续?", default=False)
+        if not continue_anyway:
+            return
+    
+    # 保存配置
+    save_config = safe_confirm("💾 是否保存当前配置？", default=True)
+    if save_config:
+        config_manager.save_config()
+    
+    # 获取数据
+    if data_source == 'local':
+        symbol, interval = interactive_select_local_data()
+        if not symbol or not interval:
+            print("❌ 未选择有效数据")
+            return
+        
+        config_manager.backtest_params.symbol = symbol
+        config_manager.backtest_params.interval = interval
+        data = load_local_data(symbol, interval)
+        if data is None:
+            print("❌ 数据加载失败")
+            return
+    else:
+        symbol = config_manager.backtest_params.symbol
+        print(f"📊 获取 {symbol} 数据...")
+        
+        data = data_manager.get_historical_data(
+            symbol=symbol,
+            interval=config_manager.backtest_params.interval,
+            start_date=config_manager.backtest_params.start_date,
+            end_date=config_manager.backtest_params.end_date
+        )
+        
+        if data is None or len(data) < 100:
+            print("❌ 数据获取失败或数据不足")
+            return
+    
+    # 运行增强版回测
+    results = run_enhanced_backtest(
+        data=data, 
+        trading_params=config_manager.trading_params, 
+        backtest_params=config_manager.backtest_params,
+        use_dynamic_leverage=use_dynamic_leverage
+    )
+    
+    # 生成报告配置
+    config_dict = config_manager.trading_params.__dict__.copy()
+    config_dict.update(config_manager.backtest_params.__dict__)
+    config_dict['data_source'] = data_source
+    config_dict['use_dynamic_leverage'] = use_dynamic_leverage
+    # 新增信号质量信息
+    config_dict.update({
+        'signal_execution_rate': results.get('signal_stats', {}).get('signal_execution_rate', 0),
+        'avg_signal_strength': results.get('avg_signal_strength', 0),
+        'avg_confidence_score': results.get('avg_confidence_score', 0),
+        'trend_alignment_rate': results.get('trend_alignment_rate', 0),
+        'total_signals': results.get('signal_stats', {}).get('total_signals', 0),
+        'high_quality_signals': results.get('signal_stats', {}).get('high_quality_signals', 0)
+    })
+    
+    # 生成增强版报告
+    print("\n📊 自动生成增强版回测报告...")
+    try:
+        enhanced_generator = EnhancedReportGenerator()
+        report_path = enhanced_generator.generate_enhanced_backtest_report(data, results, config_dict)
+        
+        print("🚀 自动在浏览器中打开报告...")
+        enhanced_generator.open_report_in_browser(report_path)
+        
+    except Exception as e:
+        print(f"❌ 增强版报告生成失败: {e}")
+        print("🔄 尝试生成标准报告...")
+        try:
+            report_path = report_generator.generate_backtest_report(data, results, config_dict)
+            auto_open = safe_confirm("是否在浏览器中打开标准报告?", default=True)
+            if auto_open:
+                report_generator.open_report_in_browser(report_path)
+        except Exception as e2:
+            print(f"❌ 标准报告也生成失败: {e2}")
+    
+    print("🔙 返回主菜单")
+
+def multi_symbol_backtest(config_manager: ConfigManager, data_manager: DataManager, 
+                         report_generator: ReportGenerator):
+    """多币种同时回测"""
+    print("\n🎯 多币种同时回测模式")
+    print("=" * 50)
+    
+    # 选择数据源
+    data_source_choices = [
+        ('📁 使用本地下载数据', 'local'),
+        ('🌐 在线获取数据', 'online')
+    ]
+    
+    data_source = safe_list_input("选择数据源", choices=data_source_choices)
+    if data_source is None:
+        return
+    
+    # 选择币种
+    symbols_to_test = []
+    
+    if data_source == 'local':
+        local_data = get_local_data_summary()
+        if not local_data:
+            print("❌ 未找到本地数据")
+            return
+        
+        print(f"\n📁 发现 {len(local_data)} 个币种的本地数据")
+        
+        # 批量选择或预设组合
+        selection_choices = [
+            ('🎯 选择热门币种组合', 'popular'),
+            ('📊 选择主流币种组合', 'major'),
+            ('🔧 自定义选择币种', 'custom'),
+            ('📈 全部本地币种', 'all')
+        ]
+        
+        selection_type = safe_list_input("选择币种方式", choices=selection_choices)
+        if selection_type is None:
+            return
+        
+        if selection_type == 'popular':
+            # 热门币种组合
+            popular_symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT']
+            symbols_to_test = [s for s in popular_symbols if s in local_data]
+        elif selection_type == 'major':
+            # 主流币种组合
+            major_symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'DOTUSDT', 'AVAXUSDT']
+            symbols_to_test = [s for s in major_symbols if s in local_data]
+        elif selection_type == 'all':
+            # 全部币种
+            symbols_to_test = list(local_data.keys())
+        else:
+            # 自定义选择
+            symbol_choices = [(symbol, symbol) for symbol in local_data.keys()]
+            selected_symbols = []
+            
+            print("\n📋 可选币种:")
+            for i, symbol in enumerate(local_data.keys(), 1):
+                print(f"{i:2d}. {symbol}")
+            
+            while True:
+                symbol_input = safe_text_input("输入币种编号(用逗号分隔,如:1,2,3)或直接回车结束", default="")
+                if not symbol_input:
+                    break
+                
+                try:
+                    indices = [int(x.strip()) for x in symbol_input.split(',')]
+                    symbol_list = list(local_data.keys())
+                    for idx in indices:
+                        if 1 <= idx <= len(symbol_list):
+                            symbol = symbol_list[idx-1]
+                            if symbol not in selected_symbols:
+                                selected_symbols.append(symbol)
+                    
+                    if selected_symbols:
+                        print(f"✅ 已选择: {', '.join(selected_symbols)}")
+                        symbols_to_test = selected_symbols
+                        break
+                except:
+                    print("❌ 输入格式错误，请重新输入")
+        
+        if not symbols_to_test:
+            print("❌ 未选择任何币种")
+            return
+        
+        # 选择时间周期
+        available_intervals = set()
+        for symbol in symbols_to_test:
+            available_intervals.update(local_data[symbol])
+        
+        interval_choices = [(interval, interval) for interval in sorted(available_intervals)]
+        selected_interval = safe_list_input("选择时间周期", choices=interval_choices)
+        if selected_interval is None:
+            return
+    
+    else:
+        # 在线数据
+        try:
+            all_symbols = data_manager.get_top_symbols(20)
+            
+            # 预设组合选择
+            preset_choices = [
+                ('🎯 前5大币种', all_symbols[:5]),
+                ('📊 前10大币种', all_symbols[:10]),
+                ('🔧 自定义选择', 'custom')
+            ]
+            
+            preset_choice = safe_list_input("选择币种组合", choices=[(desc, symbols) for desc, symbols in preset_choices])
+            if preset_choice is None:
+                return
+            
+            if preset_choice == 'custom':
+                # 自定义选择
+                symbol_choices = [(f"{symbol} (第{i+1}名)", symbol) for i, symbol in enumerate(all_symbols)]
+                symbols_to_test = []
+                
+                print("\n📋 可选币种 (按交易量排序):")
+                for i, symbol in enumerate(all_symbols, 1):
+                    print(f"{i:2d}. {symbol}")
+                
+                symbol_input = safe_text_input("输入币种编号(用逗号分隔,如:1,2,3)", default="1,2,3")
+                if not symbol_input:
+                    return
+                
+                try:
+                    indices = [int(x.strip()) for x in symbol_input.split(',')]
+                    for idx in indices:
+                        if 1 <= idx <= len(all_symbols):
+                            symbols_to_test.append(all_symbols[idx-1])
+                except:
+                    print("❌ 输入格式错误")
+                    return
+            else:
+                symbols_to_test = preset_choice
+            
+            selected_interval = config_manager.backtest_params.interval
+            
+        except Exception as e:
+            print(f"❌ 获取币种列表失败: {e}")
+            return
+    
+    if not symbols_to_test:
+        print("❌ 未选择任何币种")
+        return
+    
+    # 选择增强功能
+    use_dynamic_leverage = safe_confirm("🎯 是否使用动态杠杆管理?", default=True)
+    
+    print(f"\n🚀 开始多币种回测...")
+    print(f"📊 币种数量: {len(symbols_to_test)}")
+    print(f"📈 时间周期: {selected_interval}")
+    print(f"⚡ 动态杠杆: {use_dynamic_leverage}")
+    print(f"💰 每币种初始资金: {config_manager.backtest_params.initial_cash:,.0f} USDT")
+    
+    # 执行多币种回测
+    multi_results = {}
+    total_initial_cash = 0
+    total_final_value = 0
+    
+    for i, symbol in enumerate(symbols_to_test, 1):
+        print(f"\n[{i}/{len(symbols_to_test)}] 📊 回测 {symbol}...")
+        
+        # 获取数据
+        if data_source == 'local':
+            data = load_local_data(symbol, selected_interval)
+        else:
+            data = data_manager.get_historical_data(
+                symbol=symbol,
+                interval=selected_interval,
+                start_date=config_manager.backtest_params.start_date,
+                end_date=config_manager.backtest_params.end_date
+            )
+        
+        if data is None or len(data) < 100:
+            print(f"❌ {symbol} 数据不足，跳过")
+            continue
+        
+        # 创建该币种的回测参数
+        symbol_backtest_params = BacktestParams(
+            symbol=symbol,
+            interval=selected_interval,
+            initial_cash=config_manager.backtest_params.initial_cash,
+            commission=config_manager.backtest_params.commission,
+            start_date=config_manager.backtest_params.start_date,
+            end_date=config_manager.backtest_params.end_date
+        )
+        
+        # 运行回测
+        try:
+            results = run_enhanced_backtest(
+                data=data,
+                trading_params=config_manager.trading_params,
+                backtest_params=symbol_backtest_params,
+                use_dynamic_leverage=use_dynamic_leverage
+            )
+            
+            multi_results[symbol] = {
+                'results': results,
+                'data': data,
+                'symbol': symbol,
+                'interval': selected_interval
+            }
+            
+            total_initial_cash += results['initial_cash']
+            total_final_value += results['final_value']
+            
+            print(f"✅ {symbol}: {results['total_return']:.2f}% | 交易: {results['total_trades']} | 胜率: {results['win_rate']:.1f}%")
+            
+        except Exception as e:
+            print(f"❌ {symbol} 回测失败: {e}")
+            continue
+    
+    if not multi_results:
+        print("❌ 所有币种回测均失败")
+        return
+    
+    # 计算总体统计
+    total_return = (total_final_value - total_initial_cash) / total_initial_cash * 100 if total_initial_cash > 0 else 0
+    
+    print(f"\n🎯 多币种回测汇总:")
+    print(f"📊 成功回测币种: {len(multi_results)}")
+    print(f"💰 总投入资金: {total_initial_cash:,.0f} USDT")
+    print(f"💰 总最终价值: {total_final_value:,.0f} USDT")
+    print(f"📈 总体收益率: {total_return:.2f}%")
+    
+    # 按收益率排序显示
+    sorted_results = sorted(multi_results.items(), key=lambda x: x[1]['results']['total_return'], reverse=True)
+    
+    print(f"\n📊 各币种表现排行:")
+    print(f"{'排名':<4} {'币种':<12} {'收益率':<10} {'交易数':<8} {'胜率':<8} {'最大回撤':<10}")
+    print("-" * 60)
+    
+    for rank, (symbol, data) in enumerate(sorted_results, 1):
+        results = data['results']
+        print(f"{rank:<4} {symbol:<12} {results['total_return']:>8.2f}% {results['total_trades']:>6} "
+              f"{results['win_rate']:>6.1f}% {results['max_drawdown']*100:>8.2f}%")
+    
+    # 生成多币种报告
+    print("\n📊 生成多币种回测报告...")
+    try:
+        enhanced_generator = EnhancedReportGenerator()
+        report_path = enhanced_generator.generate_multi_symbol_report(multi_results, {
+            'data_source': data_source,
+            'use_dynamic_leverage': use_dynamic_leverage,
+            'total_initial_cash': total_initial_cash,
+            'total_final_value': total_final_value,
+            'total_return': total_return,
+            'config': config_manager.trading_params.__dict__
+        })
+        
+        print("🚀 自动在浏览器中打开报告...")
+        enhanced_generator.open_report_in_browser(report_path)
+        
+    except Exception as e:
+        print(f"❌ 多币种报告生成失败: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    print("🔙 返回主菜单")
+
+def main():
+    """主程序入口"""
+    print("=" * 60)
+    print("🎯 模块化Pinbar策略回测系统 - 修复版")
+    print("=" * 60)
+    print("✨ 修复内容:")
+    print("   🔧 信号执行逻辑优化 - 放宽执行条件")
+    print("   📊 仓位计算修复 - 确保正确计算仓位大小")
+    print("   🎯 订单执行增强 - 增加详细调试信息")
+    print("   📈 错误处理完善 - 更好的异常处理机制")
+    print("   🔄 交易状态管理 - 完善止损止盈逻辑")
+    print("💡 提示: 使用 Ctrl+C 或 ESC 键可以返回上层菜单")
+    
+    # 设置信号处理
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    # 初始化管理器
+    config_manager = ConfigManager()
+    data_manager = DataManager()
+    report_generator = ReportGenerator()
+    
+    # 主菜单
+    while True:
+        print("\n📋 主菜单:")
+        choices = [
+            '🚀 快速回测 (修复版)',
+            '⚙️  配置参数后回测 (修复版)',
+            '🎯 多币种同时回测',
+            '🔧 智能参数优化',
+            '📊 多配置对比测试',
+            '📈 多策略对比',
+            '⬇️  数据下载器',
+            '📁 查看本地数据',
+            '❌ 退出程序'
+        ]
+        
+        choice = safe_list_input("请选择操作 (ESC返回)", choices=choices)
+        if choice is None:
+            print("👋 程序退出")
+            return
+        
+        if choice == choices[0]:  # 快速回测
+            quick_backtest(config_manager, data_manager, report_generator)
+        
+        elif choice == choices[1]:  # 配置参数后回测
+            custom_backtest(config_manager, data_manager, report_generator)
+        
+        elif choice == choices[2]:  # 多币种同时回测
+            multi_symbol_backtest(config_manager, data_manager, report_generator)
+        
+        elif choice == choices[3]:  # 参数优化
+            parameter_optimization(config_manager, data_manager)
+        
+        elif choice == choices[4]:  # 多配置对比测试
+            print("⚠️  多配置对比功能开发中...")
+        
+        elif choice == choices[5]:  # 多策略对比
+            print("⚠️  多策略对比功能开发中...")
+        
+        elif choice == choices[6]:  # 数据下载器
+            print("\n🚀 启动数据下载器...")
+            try:
+                from data_downloader import CryptoDataDownloader
+                downloader = CryptoDataDownloader()
+                downloader.interactive_download()
+            except ImportError:
+                print("❌ 数据下载器模块未找到")
+            except Exception as e:
+                print(f"❌ 数据下载器启动失败: {e}")
+        
+        elif choice == choices[7]:  # 查看本地数据
+            local_data = get_local_data_summary()
+            if local_data:
+                print(f"\n📁 本地数据摘要 (共{len(local_data)}个币种):")
+                print("-" * 60)
+                for symbol, intervals in local_data.items():
+                    print(f"{symbol:<12}: {', '.join(intervals)}")
+            else:
+                print("\n❌ 未找到本地数据，请先使用数据下载器下载数据")
+        
+        elif choice == choices[8]:  # 退出
+            print("👋 程序退出")
+            break
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n👋 程序被用户中断")
+    except Exception as e:
+        print(f"\n❌ 程序异常: {e}")
+        import traceback
+        traceback.print_exc()
