@@ -762,13 +762,21 @@ class EnhancedPinbarStrategy(bt.Strategy):
         
         if stop_distance <= 0:
             return 0
-        
+        # 最大仓位基于风险
         max_position_value_by_risk = risk_amount / (stop_distance / entry_price)
         
         # 基于保证金限制
-        max_margin_amount = current_cash * (self.max_margin_per_trade_pct / 100)
+        # ✅ 修复保证金限制计算
+        # 使用更保守的可用资金计算
+        available_cash = current_cash * 0.8  # 保留20%缓冲
+        max_margin_amount = available_cash * (self.max_margin_per_trade_pct / 100)
         max_position_value_by_margin = max_margin_amount * leverage
-        
+        print(f"   风险额度: {risk_amount:.2f} USDT")
+        print(f"   止损距离: {stop_distance:.4f} ({stop_distance/entry_price*100:.2f}%)")
+        print(f"   基于风险最大仓位: {max_position_value_by_risk:.2f} USDT")
+        print(f"   可用现金: {available_cash:.2f} USDT")
+        print(f"   最大保证金额度: {max_margin_amount:.2f} USDT ({self.max_margin_per_trade_pct}%)")
+        print(f"   基于保证金最大仓位: {max_position_value_by_margin:.2f} USDT")
         # 取较小值
         max_position_value = min(max_position_value_by_risk, max_position_value_by_margin)
         position_size = max_position_value / entry_price
@@ -779,10 +787,16 @@ class EnhancedPinbarStrategy(bt.Strategy):
             position_size = min_position_value / entry_price
         
         # 保证金充足性检查
-        required_margin = (position_size * entry_price) / leverage
-        if required_margin > current_cash * 0.95:
+        final_position_value = position_size * entry_price
+        required_margin = final_position_value / leverage
+        if required_margin > available_cash:
+            print(f"❌ 保证金不足: 需要{required_margin:.2f}, 可用{available_cash:.2f}")
+
             return 0
-        
+        print(f"   最终仓位大小: {position_size:.6f}")
+        print(f"   最终仓位价值: {final_position_value:.2f} USDT")
+        print(f"   所需保证金: {required_margin:.2f} USDT")
+        print(f"   保证金占用: {required_margin/current_cash*100:.2f}%")
         return position_size
 
     def _record_new_trade_with_trend(self, order, signal: PinbarSignal, actual_entry_price: float, 
@@ -794,8 +808,43 @@ class EnhancedPinbarStrategy(bt.Strategy):
         trade_id = f"T{self.trade_counter:04d}"
         
         position_value = position_size * actual_entry_price
-        margin_ratio = (required_margin / self.broker.getcash()) * 100
+        # ✅ 修复保证金计算 - 确保数据正确性
+        current_account_value = self.broker.getvalue()  # 使用总资产而不是现金
+        current_cash = self.broker.getcash()
+        # 重新验证保证金计算
+        calculated_margin = position_value / leverage   
+
+        # margin_ratio = (required_margin / self.broker.getcash()) * 100
+
+        # 保证金占用比例应该基于账户总价值，而不是现金
+        # 因为现金会因为开仓而减少，但总资产价值更稳定
+        margin_ratio_by_value = (calculated_margin / current_account_value) * 100
+        margin_ratio_by_cash = (calculated_margin / current_cash) * 100 if current_cash > 0 else 0
+    
+        # 使用账户总价值计算更合理的保证金占用比例
+        margin_ratio = margin_ratio_by_value
+        # 调试信息
+        print(f"🔍 保证金计算调试:")
+        print(f"   仓位价值: {position_value:.2f} USDT")
+        print(f"   杠杆: {leverage}x")
+        print(f"   计算保证金: {calculated_margin:.2f} USDT")
+        print(f"   传入保证金: {required_margin:.2f} USDT")
+        print(f"   当前现金: {current_cash:.2f} USDT")
+        print(f"   当前资产: {current_account_value:.2f} USDT")
+        print(f"   保证金占比(现金): {margin_ratio_by_cash:.2f}%")
+        print(f"   保证金占比(资产): {margin_ratio_by_value:.2f}%")
+
+        # 确保保证金数据一致性
+        if abs(calculated_margin - required_margin) > 0.01:
+            print(f"⚠️ 保证金计算不一致，使用重新计算值")
+            required_margin = calculated_margin
         
+        # 确保保证金为正数
+        if required_margin < 0:
+            print(f"❌ 保证金为负数: {required_margin:.2f}，设为0")
+            required_margin = 0
+            margin_ratio = 0
+
         # 计算预估资金费用（基于持仓时间估算）
         estimated_holding_hours = 24  # 假设平均持仓24小时
         estimated_funding_periods = estimated_holding_hours / self.funding_interval_hours
@@ -845,6 +894,11 @@ class EnhancedPinbarStrategy(bt.Strategy):
             'position_value': position_value,
             'required_margin': required_margin,
             'margin_ratio': margin_ratio,
+            'entry_commission': entry_commission,
+            'margin_ratio_by_cash': margin_ratio_by_cash,
+            'margin_ratio_by_value': margin_ratio_by_value,
+            'account_value_at_entry': current_account_value,
+            'cash_at_entry': current_cash,
             'entry_commission': entry_commission,
             'entry_slippage_cost': entry_slippage_cost,
             'estimated_funding_cost': estimated_funding_cost,
@@ -1344,19 +1398,50 @@ def run_enhanced_backtest(data: pd.DataFrame, trading_params: TradingParams,
         trend_win_rate = len([t for t in trend_trades if t['profit'] > 0]) / len(trend_trades) * 100 if trend_trades else 0
         
         # ✅ 成本和保证金统计
-        leverages = [t.get('leverage', 1) for t in strategy.trade_history]
-        margins = [t.get('margin_ratio', 0) for t in strategy.trade_history]
+        # ✅ 修复保证金和杠杆统计
+        leverages = []
+        margin_ratios = []
+        margin_amounts = []
+        position_values = []
+        
+        for trade in strategy.trade_history:
+            if 'leverage' in trade and trade['leverage'] > 0:
+                leverages.append(trade['leverage'])
+            
+            if 'margin_ratio' in trade and trade['margin_ratio'] >= 0:  # 过滤负数
+                margin_ratios.append(trade['margin_ratio'])
+            
+            if 'required_margin' in trade and trade['required_margin'] >= 0:  # 过滤负数
+                margin_amounts.append(trade['required_margin'])
+            
+            if 'position_value' in trade and trade['position_value'] > 0:
+                position_values.append(trade['position_value'])
+        
+         # 计算统计值
+        avg_leverage = np.mean(leverages) if leverages else 1.0
+        max_leverage = max(leverages) if leverages else 1.0
+        avg_margin_ratio = np.mean(margin_ratios) if margin_ratios else 0.0
+        max_margin_ratio = max(margin_ratios) if margin_ratios else 0.0
+        total_margin_used = sum(margin_amounts) if margin_amounts else 0.0
+        total_position_value = sum(position_values) if position_values else 0.0
+        # 分别统计盈利和亏损交易的保证金使用
+        profitable_trades = [t for t in strategy.trade_history if t.get('profit', 0) > 0]
+        losing_trades = [t for t in strategy.trade_history if t.get('profit', 0) <= 0]
+        
+        avg_margin_profitable = np.mean([t.get('margin_ratio', 0) for t in profitable_trades if t.get('margin_ratio', 0) >= 0]) if profitable_trades else 0.0
+        avg_margin_losing = np.mean([t.get('margin_ratio', 0) for t in losing_trades if t.get('margin_ratio', 0) >= 0]) if losing_trades else 0.0
+        
+        # 成本统计
         commissions = [t.get('commission_costs', 0) for t in strategy.trade_history]
         funding_costs = [t.get('funding_costs', 0) for t in strategy.trade_history]
         slippage_costs = [t.get('slippage_costs', 0) for t in strategy.trade_history]
         
-        avg_leverage = np.mean(leverages)
-        avg_margin_usage = np.mean(margins)
         total_commission = sum(commissions)
         total_funding = sum(funding_costs)
         total_slippage = sum(slippage_costs)
         total_costs = total_commission + total_funding + total_slippage
-        
+
+
         # 最大浮盈统计
         max_profits_seen = [t.get('max_profit_seen', 0) for t in strategy.trade_history]
         avg_max_profit = np.mean(max_profits_seen)
@@ -1364,10 +1449,21 @@ def run_enhanced_backtest(data: pd.DataFrame, trading_params: TradingParams,
         # 部分平仓统计
         partial_trades = [t for t in strategy.trade_history if t.get('partial_closed', False)]
         partial_close_rate = len(partial_trades) / total_trades * 100 if total_trades > 0 else 0
-        
+        print(f"📊 保证金使用统计:")
+        print(f"   平均杠杆: {avg_leverage:.1f}x (最高: {max_leverage:.1f}x)")
+        print(f"   平均保证金占用: {avg_margin_ratio:.1f}% (最高: {max_margin_ratio:.1f}%)")
+        print(f"   盈利交易平均保证金: {avg_margin_profitable:.1f}%")
+        print(f"   亏损交易平均保证金: {avg_margin_losing:.1f}%")
+        print(f"   总保证金使用: {total_margin_used:.2f} USDT")
+        print(f"   总仓位价值: {total_position_value:.2f} USDT")
     else:
+        # 无交易时的默认值
         win_rate = profit_factor = trend_win_rate = 0
-        avg_leverage = avg_margin_usage = avg_max_profit = 0
+        avg_leverage = max_leverage = 1.0
+        avg_margin_ratio = max_margin_ratio = 0.0
+        avg_margin_profitable = avg_margin_losing = 0.0
+        total_margin_used = total_position_value = 0.0
+        avg_max_profit = 0
         total_commission = total_funding = total_slippage = total_costs = 0
         partial_close_rate = 0
     
@@ -1383,9 +1479,17 @@ def run_enhanced_backtest(data: pd.DataFrame, trading_params: TradingParams,
         'profit_factor': profit_factor,
         'max_drawdown': strategy.max_dd,
         
-        # ✅ 杠杆和保证金信息
+         # ✅ 修复后的杠杆和保证金信息
         'avg_leverage': avg_leverage,
-        'avg_margin_usage': avg_margin_usage,
+        'max_leverage': max_leverage,
+        'avg_margin_usage': avg_margin_ratio,
+        'max_margin_usage': max_margin_ratio,
+        'avg_margin_profitable_trades': avg_margin_profitable,
+        'avg_margin_losing_trades': avg_margin_losing,
+        'total_margin_used': total_margin_used,
+        'total_position_value': total_position_value,
+        'margin_efficiency': total_position_value / total_margin_used if total_margin_used > 0 else 0,
+        
         
         # ✅ 成本分析
         'total_commission': total_commission,
