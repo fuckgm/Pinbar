@@ -787,7 +787,7 @@ class ReportDataProcessor:
                 'win_rate': results['win_rate'],
                 'profit_factor': results['profit_factor'],
                 'max_drawdown': results['max_drawdown'] * 100,
-                'sharpe_ratio': results.get('sharpe_ratio', 0.0),,
+                'sharpe_ratio': results.get('sharpe_ratio', 0.0),
                 'avg_leverage': results.get('avg_leverage', 1),
                 # 信号质量信息
                 'total_signals': signal_stats.get('total_signals', 0),

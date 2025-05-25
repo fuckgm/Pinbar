@@ -66,7 +66,7 @@ def deep_clean_for_json(data, path="root"):
 
 def clean_data_before_report(results, config_dict):
     """在生成报告前彻底清理数据"""
-    print(f"\n🔍 深度清理JSON序列化问题...")
+    # print(f"\n🔍 深度清理JSON序列化问题...")
     
     # 清理results
     cleaned_results, result_problems = deep_clean_for_json(results, "results")
@@ -74,16 +74,6 @@ def clean_data_before_report(results, config_dict):
     # 清理config_dict  
     cleaned_config, config_problems = deep_clean_for_json(config_dict, "config_dict")
     
-    # 报告发现的问题
-    all_problems = result_problems + config_problems
-    if all_problems:
-        print(f"🔧 发现并修复了 {len(all_problems)} 个JSON序列化问题:")
-        for problem in all_problems[:10]:  # 只显示前10个
-            print(f"   {problem}")
-        if len(all_problems) > 10:
-            print(f"   ... 还有 {len(all_problems) - 10} 个问题")
-    
-    print(f"✅ 数据清理完成，可以安全进行JSON序列化")
     return cleaned_results, cleaned_config
 def quick_backtest(config_manager: ConfigManager, data_manager: DataManager, 
                   report_generator: ReportGenerator):
