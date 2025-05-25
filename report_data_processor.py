@@ -669,95 +669,7 @@ class ReportDataProcessor:
             'margin_ratio_std': np.std(margin_ratios) if margin_ratios else 0,  # 保证金占用标准差
             'leverage_std': np.std(leverages) if leverages else 0  # 杠杆标准差
         }
-    def _calculate_margin_analysis_backup202505250913(self, trades: List[Dict[str, Any]], 
-                                 initial_cash: float, config: Dict[str, Any]) -> Dict[str, Any]:
-        """计算保证金使用分析"""
-        if not trades:
-            return {
-                'avg_margin_ratio': 0,
-                'max_margin_ratio': 0,
-                'min_margin_ratio': 0,
-                'avg_leverage': 1,
-                'max_leverage': 1,
-                'total_position_value': 0,
-                'total_margin_used': 0,
-                'margin_efficiency': 0,
-                'leverage_distribution': {}
-            }
-        
-        # 提取保证金相关数据
-        margin_ratios = []
-        leverages = []
-        position_values = []
-        margin_amounts = []
-        
-        for trade in trades:
-            # 保证金占用比例
-            margin_ratio = trade.get('margin_ratio', 0)
-            margin_ratios.append(margin_ratio)
-            
-            # 杠杆
-            leverage = trade.get('leverage', config.get('leverage', 1))
-            leverages.append(leverage)
-            
-            # 仓位价值
-            position_value = trade.get('position_value', 0)
-            position_values.append(position_value)
-            
-            # 保证金金额
-            margin_amount = trade.get('required_margin', position_value / leverage if leverage > 0 else position_value)
-            margin_amounts.append(margin_amount)
-        
-        # 统计计算
-        avg_margin_ratio = np.mean(margin_ratios) if margin_ratios else 0
-        max_margin_ratio = max(margin_ratios) if margin_ratios else 0
-        min_margin_ratio = min(margin_ratios) if margin_ratios else 0
-        
-        avg_leverage = np.mean(leverages) if leverages else 1
-        max_leverage = max(leverages) if leverages else 1
-        
-        total_position_value = sum(position_values)
-        total_margin_used = sum(margin_amounts)
-        
-        # 保证金效率 = 总仓位价值 / 总保证金占用
-        margin_efficiency = (total_position_value / total_margin_used) if total_margin_used > 0 else 0
-        
-        # 杠杆分布
-        leverage_distribution = {}
-        for lev in leverages:
-            lev_str = f"{int(lev)}x"
-            leverage_distribution[lev_str] = leverage_distribution.get(lev_str, 0) + 1
-        
-        # 保证金使用效率分析
-        profitable_trades = [t for t in trades if t.get('profit', 0) > 0]
-        if profitable_trades:
-            profitable_margin_ratios = [t.get('margin_ratio', 0) for t in profitable_trades]
-            avg_margin_profitable = np.mean(profitable_margin_ratios)
-        else:
-            avg_margin_profitable = 0
-        
-        losing_trades = [t for t in trades if t.get('profit', 0) < 0]
-        if losing_trades:
-            losing_margin_ratios = [t.get('margin_ratio', 0) for t in losing_trades]
-            avg_margin_losing = np.mean(losing_margin_ratios)
-        else:
-            avg_margin_losing = 0
-        
-        return {
-            'avg_margin_ratio': avg_margin_ratio,
-            'max_margin_ratio': max_margin_ratio,
-            'min_margin_ratio': min_margin_ratio,
-            'avg_leverage': avg_leverage,
-            'max_leverage': max_leverage,
-            'total_position_value': total_position_value,
-            'total_margin_used': total_margin_used,
-            'margin_efficiency': margin_efficiency,
-            'leverage_distribution': leverage_distribution,
-            'avg_margin_profitable_trades': avg_margin_profitable,
-            'avg_margin_losing_trades': avg_margin_losing,
-            'margin_usage_efficiency': (avg_margin_losing / avg_margin_profitable) if avg_margin_profitable > 0 else 0
-        }
-
+   
     def _enhance_trade_data(self, trades: List[Dict[str, Any]], 
                           initial_cash: float, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """增强交易数据，添加缺失的成本和保证金信息"""
@@ -875,7 +787,7 @@ class ReportDataProcessor:
                 'win_rate': results['win_rate'],
                 'profit_factor': results['profit_factor'],
                 'max_drawdown': results['max_drawdown'] * 100,
-                'sharpe_ratio': results['sharpe_ratio'],
+                'sharpe_ratio': results.get('sharpe_ratio', 0.0),,
                 'avg_leverage': results.get('avg_leverage', 1),
                 # 信号质量信息
                 'total_signals': signal_stats.get('total_signals', 0),
