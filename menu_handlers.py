@@ -14,8 +14,9 @@ from parameter_optimizer import ParameterOptimizer
 from data_utils import get_local_data_summary, load_local_data, interactive_select_local_data
 from pinbar_strategy import run_enhanced_backtest
 from utils import safe_list_input, safe_confirm, safe_text_input
+
 def deep_clean_for_json(data, path="root"):
-    """递归清理所有numpy类型，使数据可JSON序列化"""
+    """递归清理所有numpy类型和None值，使数据可JSON序列化且模板安全"""
     import numpy as np
     import pandas as pd
     
@@ -50,23 +51,74 @@ def deep_clean_for_json(data, path="root"):
             problematic_items.append(f"{path}: {original_type} -> int")
             return int(data), problematic_items
         elif isinstance(data, (np.float16, np.float32, np.float64)):
-            problematic_items.append(f"{path}: {original_type} -> float")
-            return float(data), problematic_items
+            # 检查是否为NaN
+            if np.isnan(data):
+                problematic_items.append(f"{path}: {original_type}(NaN) -> 0.0")
+                return 0.0, problematic_items
+            else:
+                problematic_items.append(f"{path}: {original_type} -> float")
+                return float(data), problematic_items
         elif isinstance(data, np.ndarray):
             if data.size == 1:
-                return data.item(), problematic_items
+                item_value = data.item()
+                if isinstance(item_value, float) and np.isnan(item_value):
+                    return 0.0, problematic_items
+                return item_value, problematic_items
             else:
                 return data.tolist(), problematic_items
         elif hasattr(data, 'item'):  # 其他numpy标量
-            return data.item(), problematic_items
-        elif pd.isna(data):
-            return None, problematic_items
+            item_value = data.item()
+            if isinstance(item_value, float) and np.isnan(item_value):
+                return 0.0, problematic_items
+            return item_value, problematic_items
+        elif pd.isna(data) or data is None:
+            # 将None和NaN转换为适当的默认值
+            problematic_items.append(f"{path}: None/NaN -> 0")
+            return 0, problematic_items
         else:
             return data, problematic_items
 
 def clean_data_before_report(results, config_dict):
-    """在生成报告前彻底清理数据"""
-    # print(f"\n🔍 深度清理JSON序列化问题...")
+    """在生成报告前彻底清理数据，包括None值处理"""
+    print(f"\n🔍 深度清理数据，修复None值和JSON序列化问题...")
+    
+    # 预处理：确保关键字段存在且不为None
+    if results is None:
+        results = {}
+    
+    if config_dict is None:
+        config_dict = {}
+    
+    # 为results添加默认值
+    result_defaults = {
+        'initial_cash': 20000.0,
+        'final_value': 20000.0,
+        'total_return': 0.0,
+        'total_trades': 0,
+        'win_rate': 0.0,
+        'profit_factor': 0.0,
+        'max_drawdown': 0.0,
+        'sharpe_ratio': 0.0,
+        'trades': [],
+        'signal_stats': {
+            'total_signals': 0,
+            'executed_signals': 0,
+            'signal_execution_rate': 0.0,
+            'signal_success_rate': 0.0
+        },
+        'avg_signal_strength': 0.0,
+        'avg_confidence_score': 0.0,
+        'trend_alignment_rate': 0.0
+    }
+    
+    for key, default_val in result_defaults.items():
+        if key not in results or results[key] is None:
+            results[key] = default_val
+        elif key == 'signal_stats' and isinstance(results[key], dict):
+            # 确保signal_stats子字段完整
+            for sub_key, sub_default in default_val.items():
+                if sub_key not in results[key] or results[key][sub_key] is None:
+                    results[key][sub_key] = sub_default
     
     # 清理results
     cleaned_results, result_problems = deep_clean_for_json(results, "results")
@@ -74,7 +126,16 @@ def clean_data_before_report(results, config_dict):
     # 清理config_dict  
     cleaned_config, config_problems = deep_clean_for_json(config_dict, "config_dict")
     
+    # 输出清理统计（可选，用于调试）
+    total_problems = len(result_problems) + len(config_problems)
+    if total_problems > 0:
+        print(f"   ✅ 修复了 {total_problems} 个数据问题")
+        # 如果需要详细信息，可以取消注释下面的行
+        # print(f"   详细信息: {total_problems} 个类型转换")
+    
     return cleaned_results, cleaned_config
+
+
 def quick_backtest(config_manager: ConfigManager, data_manager: DataManager, 
                   report_generator: ReportGenerator):
     """快速回测 - 增强版"""

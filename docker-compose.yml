@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  pinbar-strategy:
+    build: .
+    container_name: pinbar-deep-optimization
+    volumes:
+      - ./live_data:/app/live_data
+      - ./config:/app/config
+      - ./performance_data:/app/performance_data
+    environment:
+      - PYTHONPATH=/app
+      - TZ=UTC
+    restart: unless-stopped
+    
+  redis:
+    image: redis:7-alpine
+    container_name: pinbar-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    
+  monitoring:
+    image: grafana/grafana:latest
+    container_name: pinbar-monitoring
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  grafana_data:

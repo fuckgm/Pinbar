@@ -72,6 +72,136 @@ class EnhancedReportGenerator:
         print(f"✅ 所有模板文件已就绪，位于: {self.template_dir}")
         return True
     
+    def _safe_format_value(self, value, format_str="{:.2f}", default=0):
+        """安全地格式化数值，处理None和NaN情况"""
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            return format_str.format(default)
+        try:
+            return format_str.format(float(value))
+        except (ValueError, TypeError):
+            return format_str.format(default)
+    
+    def _ensure_safe_template_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """确保模板数据安全，为所有可能的None值提供默认值"""
+        safe_data = data.copy()
+        
+        # 确保summary部分存在且完整
+        if 'summary' not in safe_data:
+            safe_data['summary'] = {}
+        
+        summary_defaults = {
+            'initial_cash': 0.0,
+            'final_value': 0.0,
+            'total_return': 0.0,
+            'total_trades': 0,
+            'win_rate': 0.0,
+            'profit_factor': 0.0,
+            'max_drawdown': 0.0,
+            'sharpe_ratio': 0.0,
+            'max_win': 0.0,
+            'max_loss': 0.0,
+            'avg_holding_time': 0.0,
+            'max_consecutive_wins': 0,
+            'max_consecutive_losses': 0,
+            'partial_close_count': 0,
+            'partial_close_rate': 0.0
+        }
+        
+        for key, default_val in summary_defaults.items():
+            if key not in safe_data['summary'] or safe_data['summary'][key] is None:
+                safe_data['summary'][key] = default_val
+        
+        # 确保cost_analysis部分存在且完整
+        if 'cost_analysis' not in safe_data:
+            safe_data['cost_analysis'] = {}
+        
+        cost_defaults = {
+            'total_commission': 0.0,
+            'total_funding': 0.0,
+            'total_slippage': 0.0,
+            'total_costs': 0.0,
+            'avg_commission_per_trade': 0.0,
+            'avg_funding_per_trade': 0.0,
+            'avg_slippage_per_trade': 0.0,
+            'cost_to_profit_ratio': 0.0,
+            'commission_percentage': 0.0,
+            'funding_percentage': 0.0,
+            'slippage_percentage': 0.0
+        }
+        
+        for key, default_val in cost_defaults.items():
+            if key not in safe_data['cost_analysis'] or safe_data['cost_analysis'][key] is None:
+                safe_data['cost_analysis'][key] = default_val
+        
+        # 确保margin_analysis部分存在且完整
+        if 'margin_analysis' not in safe_data:
+            safe_data['margin_analysis'] = {}
+        
+        margin_defaults = {
+            'avg_margin_ratio': 0.0,
+            'max_margin_ratio': 0.0,
+            'min_margin_ratio': 0.0,
+            'avg_leverage': 1.0,
+            'max_leverage': 1.0,
+            'total_position_value': 0.0,
+            'total_margin_used': 0.0,
+            'margin_efficiency': 0.0,
+            'avg_margin_profitable_trades': 0.0,
+            'avg_margin_losing_trades': 0.0,
+            'valid_margin_trades_count': 0,
+            'valid_margin_trades_ratio': 0.0,
+            'invalid_margin_count': 0,
+            'data_quality_score': 0.0
+        }
+        
+        for key, default_val in margin_defaults.items():
+            if key not in safe_data['margin_analysis'] or safe_data['margin_analysis'][key] is None:
+                safe_data['margin_analysis'][key] = default_val
+        
+        # 确保signal_quality_stats部分存在且完整
+        if 'signal_quality_stats' not in safe_data:
+            safe_data['signal_quality_stats'] = {}
+        
+        signal_defaults = {
+            'total_signals': 0,
+            'executed_signals': 0,
+            'execution_rate': 0.0,
+            'trend_aligned_signals': 0,
+            'high_quality_signals': 0,
+            'signal_success_rate': 0.0,
+            'avg_signal_strength': 0.0,
+            'avg_confidence_score': 0.0,
+            'trend_alignment_rate': 0.0
+        }
+        
+        for key, default_val in signal_defaults.items():
+            if key not in safe_data['signal_quality_stats'] or safe_data['signal_quality_stats'][key] is None:
+                safe_data['signal_quality_stats'][key] = default_val
+        
+        # 确保trades列表存在
+        if 'trades' not in safe_data:
+            safe_data['trades'] = []
+        
+        # 确保monthly_returns列表存在
+        if 'monthly_returns' not in safe_data:
+            safe_data['monthly_returns'] = []
+        
+        # 确保config存在
+        if 'config' not in safe_data:
+            safe_data['config'] = {}
+        
+        # 确保data_info存在
+        if 'data_info' not in safe_data:
+            safe_data['data_info'] = {
+                'symbol': 'Unknown',
+                'interval': 'Unknown',
+                'start_date': 'Unknown',
+                'end_date': 'Unknown',
+                'total_candles': 0
+            }
+        
+        return safe_data
+    
     def generate_enhanced_backtest_report(self, data: pd.DataFrame, strategy_results: Dict[str, Any],
                                         config: Dict[str, Any], output_file: str = None) -> str:
         """生成增强版回测报告 - 使用外部模板"""
@@ -80,8 +210,11 @@ class EnhancedReportGenerator:
         # 准备增强数据
         report_data = self.data_processor.prepare_enhanced_backtest_data(data, strategy_results, config)
         
+        # 确保数据安全
+        safe_report_data = self._ensure_safe_template_data(report_data)
+        
         # 添加K线数据到报告数据中
-        report_data['kline_data'] = data
+        safe_report_data['kline_data'] = data
         
         # 生成增强图表
         charts = self.chart_generator.create_enhanced_backtest_charts(data, strategy_results)
@@ -89,7 +222,7 @@ class EnhancedReportGenerator:
         # 使用外部模板生成HTML报告
         html_content = self._render_template_with_data(
             'enhanced_backtest_report.html',
-            report_data, 
+            safe_report_data, 
             charts
         )
         
@@ -113,6 +246,9 @@ class EnhancedReportGenerator:
         # 准备多币种数据
         report_data = self.data_processor.prepare_multi_symbol_data(multi_results, config)
         
+        # 确保数据安全
+        safe_report_data = self._ensure_safe_template_data(report_data)
+        
         # 生成多币种图表
         charts = self.chart_generator.create_multi_symbol_charts(multi_results)
         
@@ -120,7 +256,7 @@ class EnhancedReportGenerator:
         try:
             template = self.jinja_env.get_template('multi_symbol_report.html')
             html_content = template.render(
-                data=report_data,
+                data=safe_report_data,
                 charts=charts,
                 report_time=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             )
@@ -159,49 +295,54 @@ class EnhancedReportGenerator:
                 return "N/A" if trend_val == 0 else "+∞"
             return f"{((trend_val - original_val) / original_val) * 100:+.1f}%"
         
+        # 安全获取数值，确保不为None
+        def safe_get(data, key, default=0):
+            value = data.get(key, default)
+            return value if value is not None else default
+        
         # 准备对比指标
         comparison_metrics = [
             {
                 'metric': '总收益率',
-                'original': f"{original_results['total_return']:.2f}%",
-                'trend': f"{trend_results['total_return']:.2f}%",
-                'improvement': calculate_improvement(original_results['total_return'], trend_results['total_return']),
-                'better': trend_results['total_return'] > original_results['total_return']
+                'original': f"{safe_get(original_results, 'total_return'):.2f}%",
+                'trend': f"{safe_get(trend_results, 'total_return'):.2f}%",
+                'improvement': calculate_improvement(safe_get(original_results, 'total_return'), safe_get(trend_results, 'total_return')),
+                'better': safe_get(trend_results, 'total_return') > safe_get(original_results, 'total_return')
             },
             {
                 'metric': '总交易数',
-                'original': str(original_results['total_trades']),
-                'trend': str(trend_results['total_trades']),
-                'improvement': calculate_improvement(original_results['total_trades'], trend_results['total_trades']),
-                'better': trend_results['total_trades'] > original_results['total_trades']
+                'original': str(safe_get(original_results, 'total_trades')),
+                'trend': str(safe_get(trend_results, 'total_trades')),
+                'improvement': calculate_improvement(safe_get(original_results, 'total_trades'), safe_get(trend_results, 'total_trades')),
+                'better': safe_get(trend_results, 'total_trades') > safe_get(original_results, 'total_trades')
             },
             {
                 'metric': '胜率',
-                'original': f"{original_results['win_rate']:.1f}%",
-                'trend': f"{trend_results['win_rate']:.1f}%",
-                'improvement': calculate_improvement(original_results['win_rate'], trend_results['win_rate']),
-                'better': trend_results['win_rate'] > original_results['win_rate']
+                'original': f"{safe_get(original_results, 'win_rate'):.1f}%",
+                'trend': f"{safe_get(trend_results, 'win_rate'):.1f}%",
+                'improvement': calculate_improvement(safe_get(original_results, 'win_rate'), safe_get(trend_results, 'win_rate')),
+                'better': safe_get(trend_results, 'win_rate') > safe_get(original_results, 'win_rate')
             },
             {
                 'metric': '盈亏比',
-                'original': f"{original_results.get('profit_factor', 0):.2f}",
-                'trend': f"{trend_results.get('profit_factor', 0):.2f}",
-                'improvement': calculate_improvement(original_results.get('profit_factor', 0), trend_results.get('profit_factor', 0)),
-                'better': trend_results.get('profit_factor', 0) > original_results.get('profit_factor', 0)
+                'original': f"{safe_get(original_results, 'profit_factor'):.2f}",
+                'trend': f"{safe_get(trend_results, 'profit_factor'):.2f}",
+                'improvement': calculate_improvement(safe_get(original_results, 'profit_factor'), safe_get(trend_results, 'profit_factor')),
+                'better': safe_get(trend_results, 'profit_factor') > safe_get(original_results, 'profit_factor')
             },
             {
                 'metric': '最大回撤',
-                'original': f"{original_results['max_drawdown']*100:.2f}%",
-                'trend': f"{trend_results['max_drawdown']*100:.2f}%",
-                'improvement': calculate_improvement(original_results['max_drawdown']*100, trend_results['max_drawdown']*100),
-                'better': trend_results['max_drawdown'] < original_results['max_drawdown']  # 回撤越小越好
+                'original': f"{safe_get(original_results, 'max_drawdown')*100:.2f}%",
+                'trend': f"{safe_get(trend_results, 'max_drawdown')*100:.2f}%",
+                'improvement': calculate_improvement(safe_get(original_results, 'max_drawdown')*100, safe_get(trend_results, 'max_drawdown')*100),
+                'better': safe_get(trend_results, 'max_drawdown') < safe_get(original_results, 'max_drawdown')  # 回撤越小越好
             },
             {
                 'metric': '夏普比率',
-                'original': f"{original_results.get('sharpe_ratio', 0):.3f}",
-                'trend': f"{trend_results.get('sharpe_ratio', 0):.3f}",
-                'improvement': calculate_improvement(original_results.get('sharpe_ratio', 0), trend_results.get('sharpe_ratio', 0)),
-                'better': trend_results.get('sharpe_ratio', 0) > original_results.get('sharpe_ratio', 0)
+                'original': f"{safe_get(original_results, 'sharpe_ratio'):.3f}",
+                'trend': f"{safe_get(trend_results, 'sharpe_ratio'):.3f}",
+                'improvement': calculate_improvement(safe_get(original_results, 'sharpe_ratio'), safe_get(trend_results, 'sharpe_ratio')),
+                'better': safe_get(trend_results, 'sharpe_ratio') > safe_get(original_results, 'sharpe_ratio')
             }
         ]
         
@@ -275,25 +416,30 @@ class EnhancedReportGenerator:
                 elif isinstance(trade_json['exit_time'], str):
                     pass  # 已经是字符串
             
-            # 确保所有必要字段存在
-            trade_json.setdefault('profit', 0)
-            trade_json.setdefault('profit_pct', 0)
-            trade_json.setdefault('entry_price', 0)
-            trade_json.setdefault('exit_price', 0)
-            trade_json.setdefault('size', 0)
-            trade_json.setdefault('leverage', 1)
-            trade_json.setdefault('signal_type', 'unknown')
-            trade_json.setdefault('signal_strength', 0)
-            trade_json.setdefault('reason', '未知')
-            # 新增：成本相关字段
-            trade_json.setdefault('commission_costs', 0)
-            trade_json.setdefault('funding_costs', 0)
-            trade_json.setdefault('slippage_costs', 0)
-            trade_json.setdefault('total_costs', 0)
-            trade_json.setdefault('required_margin', 0)
-            trade_json.setdefault('margin_ratio', 0)
-            trade_json.setdefault('position_value', 0)
-            trade_json.setdefault('gross_profit', 0)
+            # 确保所有必要字段存在且不为None
+            trade_defaults = {
+                'profit': 0,
+                'profit_pct': 0,
+                'entry_price': 0,
+                'exit_price': 0,
+                'size': 0,
+                'leverage': 1,
+                'signal_type': 'unknown',
+                'signal_strength': 0,
+                'reason': '未知',
+                'commission_costs': 0,
+                'funding_costs': 0,
+                'slippage_costs': 0,
+                'total_costs': 0,
+                'required_margin': 0,
+                'margin_ratio': 0,
+                'position_value': 0,
+                'gross_profit': 0
+            }
+            
+            for key, default_val in trade_defaults.items():
+                if key not in trade_json or trade_json[key] is None:
+                    trade_json[key] = default_val
             
             trades_for_json.append(trade_json)
         
@@ -419,6 +565,7 @@ if __name__ == "__main__":
     print("3. ✅ 模板文件分离，代码更清晰")
     print("4. ✅ 模板热更新，修改后立即生效")
     print("5. ✅ 自动检查模板文件完整性")
+    print("6. ✅ 数据安全处理，避免None值导致的渲染错误")
     
     # 创建实例并检查模板
     generator = EnhancedReportGenerator()

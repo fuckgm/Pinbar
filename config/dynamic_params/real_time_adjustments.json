@@ -1,0 +1,12 @@
+{
+    "_comment": "实时参数调整配置文件 - Pinbar策略深度优化系统",
+    "_version": "1.0.0",
+    "_created": "2024-12",
+    
+    "config_name": "实时参数调整",
+    "parameters": {
+        "example_param": 0.01
+    },
+    
+    "_todo": "根据具体需求修改配置结构"
+}

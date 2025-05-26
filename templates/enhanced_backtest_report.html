@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pinbar策略回测报告 - 优化版</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <title>📊 Pinbar策略回测报告 - 详细成本分析</title>
+    <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -36,159 +36,128 @@
             margin: 5px 0;
         }
         
-        /* === 紧凑型成本分析样式 === */
+        /* === 成本分析样式 === */
         .cost-summary {
-            background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
-            border: 1px solid #ffa726;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 15px 0;
-            box-shadow: 0 2px 8px rgba(255, 167, 38, 0.15);
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border: 1px solid #f39c12;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(243, 156, 18, 0.2);
         }
         
         .cost-summary h3 {
-            color: #ef6c00;
-            margin: 0 0 10px 0;
+            color: #d68910;
+            margin-top: 0;
             border: none;
-            font-size: 16px;
-            font-weight: bold;
+            font-size: 18px;
         }
         
-        .compact-grid {
+        .cost-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 8px;
-            margin-top: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
         }
         
-        .compact-item {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 8px;
-            border-radius: 6px;
+        .cost-item {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 15px;
+            border-radius: 8px;
             text-align: center;
-            border-left: 3px solid #ffa726;
-            transition: transform 0.2s;
+            border-left: 4px solid #f39c12;
         }
         
-        .compact-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        
-        .compact-value {
-            font-size: 14px;
+        .cost-value {
+            font-size: 20px;
             font-weight: bold;
-            color: #ef6c00;
-            margin-bottom: 3px;
+            color: #d68910;
+            margin-bottom: 5px;
         }
         
-        .compact-label {
-            font-size: 10px;
+        .cost-label {
+            font-size: 12px;
             color: #666;
             text-transform: uppercase;
-            line-height: 1.2;
         }
         
-        .compact-detail {
-            font-size: 9px;
-            color: #888;
-            margin-top: 2px;
-            line-height: 1.1;
-        }
-        
-        /* === 紧凑型保证金分析样式 === */
+        /* === 保证金分析样式（修改为网格格式） === */
         .margin-summary {
-            background: linear-gradient(135deg, #e8f4fd 0%, #bbdefb 100%);
-            border: 1px solid #42a5f5;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 15px 0;
-            box-shadow: 0 2px 8px rgba(66, 165, 245, 0.15);
+            background: linear-gradient(135deg, #e3f2fd 0%, #90caf9 100%);
+            border: 1px solid #2196f3;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.2);
         }
         
         .margin-summary h3 {
-            color: #1565c0;
-            margin: 0 0 10px 0;
+            color: #1976d2;
+            margin-top: 0;
             border: none;
-            font-size: 16px;
-            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        /* 保证金网格样式 */
+        .margin-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
         }
         
         .margin-item {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 8px;
-            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 15px;
+            border-radius: 8px;
             text-align: center;
-            border-left: 3px solid #42a5f5;
-            transition: transform 0.2s;
-        }
-        
-        .margin-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-left: 4px solid #2196f3;
         }
         
         .margin-value {
-            font-size: 14px;
+            font-size: 20px;
             font-weight: bold;
-            color: #1565c0;
-            margin-bottom: 3px;
+            color: #1976d2;
+            margin-bottom: 5px;
         }
         
         .margin-label {
-            font-size: 10px;
+            font-size: 12px;
             color: #666;
             text-transform: uppercase;
-            line-height: 1.2;
         }
         
         .margin-detail {
-            font-size: 9px;
-            color: #1565c0;
-            margin-top: 2px;
-            line-height: 1.1;
-        }
-        
-        /* 警告信息 */
-        .warning-info {
-            background: #fff3cd; 
-            padding: 8px 12px; 
-            margin: 8px 0; 
-            border-radius: 4px; 
-            border-left: 4px solid #ffc107;
-            font-size: 12px;
+            font-size: 10px;
+            color: #1976d2;
+            line-height: 1.2;
+            margin-top: 5px;
         }
         
         /* 简化摘要网格样式 */
         .summary-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 12px;
-            margin: 15px 0;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
         }
         
         .summary-item {
             background: #f8f9fa;
-            padding: 12px;
-            border-radius: 6px;
+            padding: 15px;
+            border-radius: 8px;
             text-align: center;
             border-left: 4px solid #4CAF50;
-            transition: transform 0.2s;
-        }
-        
-        .summary-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         
         .summary-value {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
-            margin-bottom: 4px;
+            margin-bottom: 5px;
         }
         
         .summary-label {
-            font-size: 11px;
+            font-size: 12px;
             color: #666;
             text-transform: uppercase;
         }
@@ -198,36 +167,7 @@
         .negative { color: #f44336; }
         .warning { color: #ff9800; }
         
-        /* 一行显示的核心统计 */
-        .core-stats {
-            background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
-            border: 1px solid #ba68c8;
-            border-radius: 8px;
-            padding: 12px;
-            margin: 15px 0;
-            text-align: center;
-            font-size: 14px;
-            color: #6a1b9a;
-            font-weight: 500;
-        }
-        
-        .core-stats .stat-item {
-            display: inline-block;
-            margin: 0 15px;
-            padding: 0 10px;
-            border-right: 1px solid #ba68c8;
-        }
-        
-        .core-stats .stat-item:last-child {
-            border-right: none;
-        }
-        
-        .core-stats .stat-value {
-            font-weight: bold;
-            font-size: 15px;
-        }
-        
-        /* 交易表格样式 */
+        /* 交易表格样式 - 增强版 */
         .trades-table {
             width: 100%;
             border-collapse: collapse;
@@ -398,132 +338,151 @@
     <div class="container">
         <!-- 头部 -->
         <div class="header">
-            <h1>📊 Pinbar策略回测报告 - 优化版</h1>
-            <div class="info-row">生成时间: 2024-05-25 14:30:00</div>
-            <div class="info-row">交易对: BTCUSDT | 周期: 1h</div>
-            <div class="info-row">时间范围: 2024-01-01 ~ 2024-05-01</div>
+            <h1>📊 Pinbar策略回测报告 - 详细成本分析</h1>
+            <div class="info-row">生成时间: {{ report_time }}</div>
+            <div class="info-row">交易对: {{ data.data_info.symbol }} | 周期: {{ data.data_info.interval }}</div>
+            <div class="info-row">时间范围: {{ data.data_info.start_date }} ~ {{ data.data_info.end_date }}</div>
+            
+            <!-- === 累计成本统计显示 === -->
+            {% if data.cost_analysis %}
+            <div class="info-row" style="font-size: 16px; font-weight: bold; color: #f39c12; margin-top: 15px;">
+                📊 累计交易成本总览: 手续费 {{ "{:.2f}".format(data.cost_analysis.total_commission) }} USDT | 
+                资金费率 {{ "{:.2f}".format(data.cost_analysis.total_funding) }} USDT | 
+                总成本 {{ "{:.2f}".format(data.cost_analysis.total_costs) }} USDT
+                (占收益 {{ "{:.1f}".format(data.cost_analysis.cost_to_profit_ratio) }}%)
+            </div>
+            {% endif %}
         </div>
         
-        <!-- === 核心统计一行显示 === -->
-        <div class="core-stats">
-            <div class="stat-item">
-                <div class="stat-value">累计成本: 126.57 USDT</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">手续费: 16.59 USDT</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">资金费率: 1.69 USDT</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">滑点: 8.29 USDT</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">成本占比: 8.6%</div>
-            </div>
-        </div>
-        
-        <!-- === 紧凑型成本分析区域 === -->
+        <!-- === 详细成本分析区域 === -->
+        {% if data.cost_analysis %}
         <div class="cost-summary">
-            <h3>💰 交易成本分析</h3>
-            <div class="compact-grid">
-                <div class="compact-item">
-                    <div class="compact-value">16.59 USDT</div>
-                    <div class="compact-label">总手续费</div>
-                    <div class="compact-detail">平均: 0.83 USDT/笔</div>
+            <h3>💰 交易成本详细分析</h3>
+            <div class="cost-grid">
+                <div class="cost-item">
+                    <div class="cost-value">{{ "{:.2f}".format(data.cost_analysis.total_commission) }} USDT</div>
+                    <div class="cost-label">累计总手续费</div>
+                    <div class="cost-detail">平均: {{ "{:.2f}".format(data.cost_analysis.avg_commission_per_trade) }} USDT/笔</div>
                 </div>
-                <div class="compact-item">
-                    <div class="compact-value">1.69 USDT</div>
-                    <div class="compact-label">资金费率</div>
-                    <div class="compact-detail">平均: 0.08 USDT/笔</div>
+                <div class="cost-item">
+                    <div class="cost-value">{{ "{:.2f}".format(data.cost_analysis.total_funding) }} USDT</div>
+                    <div class="cost-label">累计资金费率</div>
+                    <div class="cost-detail">平均: {{ "{:.2f}".format(data.cost_analysis.avg_funding_per_trade) }} USDT/笔</div>
                 </div>
-                <div class="compact-item">
-                    <div class="compact-value">8.29 USDT</div>
-                    <div class="compact-label">滑点成本</div>
-                    <div class="compact-detail">平均: 0.41 USDT/笔</div>
+                <div class="cost-item">
+                    <div class="cost-value">{{ "{:.2f}".format(data.cost_analysis.total_slippage) }} USDT</div>
+                    <div class="cost-label">累计滑点成本</div>
+                    <div class="cost-detail">平均: {{ "{:.2f}".format(data.cost_analysis.avg_slippage_per_trade) }} USDT/笔</div>
                 </div>
-                <div class="compact-item">
-                    <div class="compact-value">26.57 USDT</div>
-                    <div class="compact-label">总成本</div>
-                    <div class="compact-detail">占收益: 8.6%</div>
+                <div class="cost-item">
+                    <div class="cost-value">{{ "{:.2f}".format(data.cost_analysis.total_costs) }} USDT</div>
+                    <div class="cost-label">累计总成本</div>
+                    <div class="cost-detail">占收益: {{ "{:.1f}".format(data.cost_analysis.cost_to_profit_ratio) }}%</div>
                 </div>
-                <div class="compact-item">
-                    <div class="compact-value">62.4%</div>
-                    <div class="compact-label">手续费占比</div>
+                <div class="cost-item">
+                    <div class="cost-value">{{ "{:.1f}".format(data.cost_analysis.commission_percentage) }}%</div>
+                    <div class="cost-label">手续费占比</div>
                 </div>
-                <div class="compact-item">
-                    <div class="compact-value">6.4%</div>
-                    <div class="compact-label">资金费率占比</div>
+                <div class="cost-item">
+                    <div class="cost-value">{{ "{:.1f}".format(data.cost_analysis.funding_percentage) }}%</div>
+                    <div class="cost-label">资金费率占比</div>
                 </div>
             </div>
         </div>
+        {% endif %}
         
-        <!-- === 紧凑型保证金使用分析区域 === -->
+        <!-- === 保证金使用分析区域 === -->
+        {% if data.margin_analysis and data.margin_analysis.valid_margin_trades_count > 0 %}
         <div class="margin-summary">
             <h3>📈 保证金使用分析</h3>
-            <div class="warning-info">
-                ⚠️ 发现 2 笔交易的保证金数据异常，已排除统计
+            <!-- 数据质量提示 -->
+            {% if data.margin_analysis.invalid_margin_count > 0 %}
+            <div style="background: #fff3cd; padding: 15px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #f39c12; color: #856404;">
+                ⚠️ 发现 {{ data.margin_analysis.invalid_margin_count }} 笔交易的保证金数据异常，已排除统计
             </div>
+            {% endif %}
             
-            <div class="compact-grid">
+            <div class="margin-grid">
                 <div class="margin-item">
-                    <div class="margin-value">21.1%</div>
+                    <div class="margin-value">{{ "{:.1f}".format(data.margin_analysis.avg_margin_ratio) }}%</div>
                     <div class="margin-label">平均保证金占用</div>
-                    <div class="margin-detail">范围: 15.2% - 28.6%</div>
+                    <div class="margin-detail">
+                        范围: {{ "{:.1f}".format(data.margin_analysis.min_margin_ratio) }}% - 
+                            {{ "{:.1f}".format(data.margin_analysis.max_margin_ratio) }}%
+                    </div>
                 </div>
                 <div class="margin-item">
-                    <div class="margin-value">4.7x</div>
+                    <div class="margin-value">{{ "{:.1f}".format(data.margin_analysis.avg_leverage) }}x</div>
                     <div class="margin-label">平均杠杆</div>
-                    <div class="margin-detail">最高: 6.6x</div>
+                    <div class="margin-detail">最高: {{ "{:.1f}".format(data.margin_analysis.max_leverage) }}x</div>
                 </div>
                 <div class="margin-item">
-                    <div class="margin-value">168,480</div>
+                    <div class="margin-value">{{ "{:,.0f}".format(data.margin_analysis.total_position_value) }}</div>
                     <div class="margin-label">总仓位价值 (USDT)</div>
-                    <div class="margin-detail">保证金: 35,612 USDT</div>
+                    <div class="margin-detail">保证金: {{ "{:,.0f}".format(data.margin_analysis.total_margin_used) }} USDT</div>
                 </div>
                 <div class="margin-item">
-                    <div class="margin-value">4.7</div>
+                    <div class="margin-value">{{ "{:.1f}".format(data.margin_analysis.margin_efficiency) }}</div>
                     <div class="margin-label">保证金效率</div>
                     <div class="margin-detail">仓位/保证金比率</div>
                 </div>
                 <div class="margin-item">
-                    <div class="margin-value">
-                        盈利: 19.5%<br>亏损: 22.8%
+                    <div class="margin-value" style="font-size: 16px;">
+                        盈利: {{ "{:.1f}".format(data.margin_analysis.avg_margin_profitable_trades) }}%<br>
+                        亏损: {{ "{:.1f}".format(data.margin_analysis.avg_margin_losing_trades) }}%
                     </div>
                     <div class="margin-label">交易类型保证金对比</div>
                 </div>
                 <div class="margin-item">
-                    <div class="margin-value">
-                        18/20<br>90.0%
+                    <div class="margin-value" style="font-size: 14px; color: #7f8c8d;">
+                        有效数据: {{ data.margin_analysis.valid_margin_trades_count }}/{{ data.trades|length }}<br>
+                        数据完整度: {{ "{:.1f}".format(data.margin_analysis.valid_margin_trades_ratio) }}%
                     </div>
-                    <div class="margin-label">数据完整度</div>
+                    <div class="margin-label">数据质量统计</div>
                 </div>
             </div>
         </div>
+        {% else %}
+        <div class="margin-summary">
+            <h3>📈 保证金使用分析</h3>
+            <div style="text-align: center; padding: 30px; color: #7f8c8d; background: #f8f9fa; border-radius: 8px;">
+                {% if data.trades|length == 0 %}
+                    📝 暂无交易记录
+                {% else %}
+                    ⚠️ 保证金数据异常，无法生成统计<br>
+                    <small>共 {{ data.trades|length }} 笔交易，但保证金数据全部无效</small>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
         
-        <!-- 核心指标摘要 - 简化版 -->
+        <!-- 核心指标摘要 -->
         <h2>回测结果摘要</h2>
         
         <!-- 第一行：核心收益指标 -->
         <div class="summary-grid">
             <div class="summary-item">
-                <div class="summary-value">10,000 USDT</div>
+                <div class="summary-value">{{ "{:,.0f}".format(data.summary.initial_cash) }} USDT</div>
                 <div class="summary-label">初始资金</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value">10,308 USDT</div>
+                <div class="summary-value">{{ "{:,.0f}".format(data.summary.final_value) }} USDT</div>
                 <div class="summary-label">最终资金</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value positive">3.08%</div>
+                <div class="summary-value {{ 'positive' if data.summary.total_return > 0 else 'negative' }}">
+                    {{ "{:.2f}".format(data.summary.total_return) }}%
+                </div>
                 <div class="summary-label">总收益率</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value">20</div>
+                <div class="summary-value">{{ data.summary.total_trades }}</div>
                 <div class="summary-label">总交易次数</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value positive">65.0%</div>
+                <div class="summary-value {{ 'positive' if data.summary.win_rate > 50 else 'negative' }}">
+                    {{ "{:.1f}".format(data.summary.win_rate) }}%
+                </div>
                 <div class="summary-label">胜率</div>
             </div>
         </div>
@@ -531,71 +490,75 @@
         <!-- 第二行：风险指标 -->
         <div class="summary-grid">
             <div class="summary-item">
-                <div class="summary-value positive">1.85</div>
+                <div class="summary-value {{ 'positive' if data.summary.profit_factor > 1 else 'negative' }}">
+                    {{ "{:.2f}".format(data.summary.profit_factor) }}
+                </div>
                 <div class="summary-label">盈亏比</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value negative">-5.2%</div>
+                <div class="summary-value negative">{{ "{:.2f}".format(data.summary.max_drawdown) }}%</div>
                 <div class="summary-label">最大回撤</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value">0.125</div>
+                <div class="summary-value">{{ "{:.3f}".format(data.summary.sharpe_ratio) }}</div>
                 <div class="summary-label">夏普比率</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value">16.8 小时</div>
+                <div class="summary-value">{{ "{:.1f}".format(data.summary.avg_holding_time) }} 小时</div>
                 <div class="summary-label">平均持仓时间</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value">4 / 2</div>
+                <div class="summary-value">{{ data.summary.max_consecutive_wins }} / {{ data.summary.max_consecutive_losses }}</div>
                 <div class="summary-label">最大连续盈利/亏损</div>
             </div>
         </div>
         
         <!-- 第三行：信号质量统计 -->
+        {% if data.signal_quality_stats %}
         <div class="summary-grid">
             <div class="summary-item">
-                <div class="summary-value">45</div>
+                <div class="summary-value">{{ data.signal_quality_stats.total_signals }}</div>
                 <div class="summary-label">总检测信号数</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value">20</div>
+                <div class="summary-value">{{ data.signal_quality_stats.executed_signals }}</div>
                 <div class="summary-label">执行信号数</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value">44.4%</div>
+                <div class="summary-value">{{ "{:.1f}".format(data.signal_quality_stats.execution_rate) }}%</div>
                 <div class="summary-label">信号执行率</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value positive">65.0%</div>
+                <div class="summary-value {{ 'positive' if data.signal_quality_stats.signal_success_rate > 60 else 'negative' }}">
+                    {{ "{:.1f}".format(data.signal_quality_stats.signal_success_rate) }}%
+                </div>
                 <div class="summary-label">信号成功率</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value">3.2/5</div>
+                <div class="summary-value">{{ "{:.1f}".format(data.signal_quality_stats.avg_signal_strength) }}/5</div>
                 <div class="summary-label">平均信号强度</div>
             </div>
         </div>
+        {% endif %}
         
         <!-- 图表展示 -->
         <div class="tabs">
             <div class="tab active" onclick="showTab('enhanced_price')">价格走势图</div>
-            <div class="tab" onclick="showTab('pnl_analysis')">收益分析</div>
+            {% if 'pnl_analysis' in charts %}<div class="tab" onclick="showTab('pnl_analysis')">收益分析</div>{% endif %}
         </div>
         
         <div id="enhanced_price" class="tab-content active chart-container">
-            <div id="priceChart" style="width:100%;height:400px;border:1px solid #ddd;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#666;">
-                📈 价格走势图将在此显示
-            </div>
+            {{ charts.enhanced_price|safe }}
         </div>
         
+        {% if 'pnl_analysis' in charts %}
         <div id="pnl_analysis" class="tab-content chart-container">
-            <div id="pnlChart" style="width:100%;height:400px;border:1px solid #ddd;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#666;">
-                📊 收益分析图将在此显示
-            </div>
+            {{ charts.pnl_analysis|safe }}
         </div>
+        {% endif %}
         
-        <!-- === 交易明细表格 - 紧凑版 === -->
-        <h2>📊 交易记录明细 (共 20 条)</h2>
+        <!-- === 交易明细表格 === -->
+        <h2>📊 交易记录明细 (共 {{ data.trades|length }} 条) - 含详细成本分析</h2>
         
         <!-- 翻页控件（顶部） -->
         <div class="pagination">
@@ -607,11 +570,16 @@
             <button onclick="nextPage()">下一页</button>
             <button onclick="lastPage()">末页</button>
             <span style="margin-left: 20px;">
+                跳转到: <input type="number" id="gotoPage" min="1" onkeypress="if(event.key=='Enter') gotoPage()">
+                <button onclick="gotoPage()">跳转</button>
+            </span>
+            <span style="margin-left: 20px;">
                 每页显示: 
                 <select id="pageSize" onchange="changePageSize()">
-                    <option value="20" selected>20条</option>
                     <option value="50">50条</option>
-                    <option value="100">100条</option>
+                    <option value="100" selected>100条</option>
+                    <option value="200">200条</option>
+                    <option value="500">500条</option>
                 </select>
             </span>
         </div>
@@ -628,9 +596,9 @@
                     <th>仓位大小</th>
                     <th>杠杆</th>
                     <th>保证金占用</th>
-                    <th>手续费</th>
+                    <th>手续费明细</th>
                     <th>资金费率</th>
-                    <th>滑点</th>
+                    <th>滑点成本</th>
                     <th>毛利润</th>
                     <th>净收益</th>
                     <th>收益率</th>
@@ -639,79 +607,176 @@
                 </tr>
             </thead>
             <tbody id="tradesTableBody">
-                <!-- 示例数据 -->
-                <tr onclick="showTradeDetail(0)" style="cursor: pointer;">
-                    <td>1</td>
-                    <td><span style="color: green;">做多</span></td>
-                    <td style="font-size: 10px;">2024-01-18 00:00</td>
-                    <td>2531.2050</td>
-                    <td style="font-size: 10px;">2024-01-18 16:00</td>
-                    <td>2438.2803</td>
-                    <td>3.3375</td>
-                    <td>4x</td>
-                    <td>
-                        <div>2112 USDT</div>
-                        <div class="margin-detail">21.1%</div>
-                    </td>
-                    <td>
-                        <div style="color: #d68910; font-weight: bold;">16.59 USDT</div>
-                        <div class="cost-detail">开仓+平仓</div>
-                    </td>
-                    <td>
-                        <div style="color: #e67e22; font-weight: bold;">1.69 USDT</div>
-                        <div class="cost-detail">持仓期间</div>
-                    </td>
-                    <td>
-                        <div style="color: #8e44ad; font-weight: bold;">8.29 USDT</div>
-                        <div class="cost-detail">买卖滑点</div>
-                    </td>
-                    <td class="negative">-310.14</td>
-                    <td class="negative" style="font-weight: bold;">-336.71</td>
-                    <td class="negative">-15.94%</td>
-                    <td style="color: orange;">3/5</td>
-                    <td>止损</td>
-                </tr>
+                <!-- 动态填充 -->
             </tbody>
         </table>
         
         <!-- 添加交易详情弹窗 -->
         <div id="tradeModal" class="trade-modal">
             <div class="trade-modal-content">
-                <span class="close" onclick="closeTradeDetail()">&times;</span>
+                <span class="close" onclick="closeTradeDetail()">×</span>
                 <h2>交易详情</h2>
                 <div id="tradeDetailContent"></div>
                 <div id="klineChart" class="kline-chart-container"></div>
             </div>
         </div>
+        
+        <!-- 翻页控件（底部） -->
+        <div class="pagination">
+            <button onclick="firstPage()">首页</button>
+            <button onclick="prevPage()">上一页</button>
+            <span class="page-info">
+                第 <span id="currentPage2">1</span> 页 / 共 <span id="totalPages2">1</span> 页
+            </span>
+            <button onclick="nextPage()">下一页</button>
+            <button onclick="lastPage()">末页</button>
+        </div>
     </div>
     
     <script>
-        // 示例交易数据
-        const allTrades = [
-            {
-                direction: 'buy',
-                entry_time: '2024-01-18 00:00:00',
-                entry_price: 2531.2050,
-                exit_time: '2024-01-18 16:00:00',
-                exit_price: 2438.2803,
-                size: 3.3375,
-                leverage: 4,
-                required_margin: 2112,
-                margin_ratio: 21.1,
-                commission_costs: 16.59,
-                funding_costs: 1.69,
-                slippage_costs: 8.29,
-                gross_profit: -310.14,
-                profit: -336.71,
-                profit_pct: -15.94,
-                signal_strength: 3,
-                reason: '止损'
-            }
-        ];
-        
+        // 交易数据和K线数据
+        const allTrades = {{ trades_json|safe }};
+        const klineData = {{ kline_json|safe }};
         let currentPage = 1;
-        let pageSize = 20;
+        let pageSize = 100;
         let totalPages = Math.ceil(allTrades.length / pageSize);
+        
+        console.log('交易数据加载:', allTrades.length, '条记录');
+        console.log('K线数据加载:', klineData.length, '条记录');
+        
+        // 初始化
+        updatePagination();
+        renderTrades();
+        
+        function renderTrades() {
+            const tbody = document.getElementById('tradesTableBody');
+            tbody.innerHTML = '';
+            
+            if (!allTrades || allTrades.length === 0) {
+                const row = tbody.insertRow();
+                const cell = row.insertCell(0);
+                cell.colSpan = 17;
+                cell.textContent = '暂无交易记录';
+                cell.style.textAlign = 'center';
+                cell.style.padding = '20px';
+                cell.style.color = '#7f8c8d';
+                return;
+            }
+            
+            const start = (currentPage - 1) * pageSize;
+            const end = Math.min(start + pageSize, allTrades.length);
+            
+            console.log(`渲染交易记录 ${start + 1} - ${end} / ${allTrades.length}`);
+            
+            for (let i = start; i < end; i++) {
+                const trade = allTrades[i];
+                const row = tbody.insertRow();
+                
+                // 添加点击事件
+                row.onclick = function() { showTradeDetail(i); };
+                row.style.cursor = 'pointer';
+                
+                // 序号
+                row.insertCell(0).textContent = i + 1;
+                
+                // 方向
+                const directionCell = row.insertCell(1);
+                if (trade.direction === 'buy') {
+                    directionCell.innerHTML = '<span style="color: #27ae60; font-weight: 600;">做多</span>';
+                } else {
+                    directionCell.innerHTML = '<span style="color: #e74c3c; font-weight: 600;">做空</span>';
+                }
+                
+                // 开仓时间
+                const entryTimeCell = row.insertCell(2);
+                entryTimeCell.textContent = trade.entry_time ? trade.entry_time.substring(0, 16) : '-';
+                entryTimeCell.style.fontSize = '10px';
+                
+                // 开仓价格
+                row.insertCell(3).textContent = trade.entry_price ? trade.entry_price.toFixed(4) : '-';
+                
+                // 平仓时间
+                const exitTimeCell = row.insertCell(4);
+                exitTimeCell.textContent = trade.exit_time ? trade.exit_time.substring(0, 16) : '-';
+                exitTimeCell.style.fontSize = '10px';
+                
+                // 平仓价格
+                row.insertCell(5).textContent = trade.exit_price ? trade.exit_price.toFixed(4) : '-';
+                
+                // 仓位大小
+                row.insertCell(6).textContent = trade.size ? trade.size.toFixed(4) : '-';
+                
+                // 杠杆
+                row.insertCell(7).textContent = (trade.leverage || 1) + 'x';
+                
+                // === 保证金占用 ===
+                const marginCell = row.insertCell(8);
+                const marginAmount = trade.required_margin || 0;
+                const marginRatio = trade.margin_ratio || 0;
+                marginCell.innerHTML = `
+                    <div>${marginAmount.toFixed(0)} USDT</div>
+                    <div class="margin-detail">${marginRatio.toFixed(1)}%</div>
+                `;
+                
+                // === 手续费明细 ===
+                const commissionCell = row.insertCell(9);
+                const commission = trade.commission_costs || 0;
+                commissionCell.innerHTML = `
+                    <div style="color: #e67e22; font-weight: bold;">${commission.toFixed(2)} USDT</div>
+                    <div class="cost-detail">开仓+平仓手续费</div>
+                `;
+                
+                // === 资金费率 ===
+                const fundingCell = row.insertCell(10);
+                const funding = trade.funding_costs || 0;
+                fundingCell.innerHTML = `
+                    <div style="color: #d35400; font-weight: bold;">${funding.toFixed(2)} USDT</div>
+                    <div class="cost-detail">持仓期间累计</div>
+                `;
+                
+                // === 滑点成本 ===
+                const slippageCell = row.insertCell(11);
+                const slippage = trade.slippage_costs || 0;
+                slippageCell.innerHTML = `
+                    <div style="color: #8e44ad; font-weight: bold;">${slippage.toFixed(2)} USDT</div>
+                    <div class="cost-detail">买卖滑点</div>
+                `;
+                
+                // === 毛利润 ===
+                const grossProfitCell = row.insertCell(12);
+                const grossProfit = trade.gross_profit || 0;
+                grossProfitCell.textContent = grossProfit.toFixed(2);
+                grossProfitCell.className = grossProfit >= 0 ? 'positive' : 'negative';
+                
+                // 净收益
+                const profitCell = row.insertCell(13);
+                const profit = trade.profit || 0;
+                profitCell.textContent = profit.toFixed(2);
+                profitCell.className = profit >= 0 ? 'positive' : 'negative';
+                profitCell.style.fontWeight = 'bold';
+                
+                // 收益率
+                const profitPctCell = row.insertCell(14);
+                const profitPct = trade.profit_pct || 0;
+                profitPctCell.textContent = profitPct.toFixed(2) + '%';
+                profitPctCell.className = profitPct >= 0 ? 'positive' : 'negative';
+                
+                // 信号强度
+                const strengthCell = row.insertCell(15);
+                const strength = trade.signal_strength || 0;
+                strengthCell.textContent = strength + '/5';
+                if (strength >= 4) {
+                    strengthCell.style.color = '#27ae60';
+                } else if (strength >= 2) {
+                    strengthCell.style.color = '#f39c12';
+                } else {
+                    strengthCell.style.color = '#e74c3c';
+                }
+                
+                // 平仓原因
+                row.insertCell(16).textContent = trade.reason || '未知';
+            }
+        }
         
         function showTradeDetail(tradeIndex) {
             const trade = allTrades[tradeIndex];
@@ -720,114 +785,211 @@
             const modal = document.getElementById('tradeModal');
             const content = document.getElementById('tradeDetailContent');
             
+            // 格式化详细信息 - 简约列表格式
+           // 在 showTradeDetail 函数中，将 content.innerHTML 替换为：
             content.innerHTML = `
-                <h3>交易 #${tradeIndex + 1} - 详细成本分析</h3>
-                <h4>📊 交易区间K线图</h4>
-                <div id="tradeKlineChart" style="width: 100%; height: 450px; margin: 20px 0; border: 1px solid #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #666;">
-                    📈 K线图将在此显示 (交易时间段: ${trade.entry_time} ~ ${trade.exit_time})
-                </div>
+                <h3 style="color: #2c3e50; margin-bottom: 15px;">交易 #${tradeIndex + 1}</h3>
                 
-                <h4>📋 详细信息表</h4>
-                <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
-                    <thead>
-                        <tr style="background: #f8f9fa;">
-                            <th style="padding: 12px; text-align: left; border: 1px solid #dee2e6; background: #e9ecef; font-weight: bold;">类别</th>
-                            <th style="padding: 12px; text-align: left; border: 1px solid #dee2e6; background: #e9ecef; font-weight: bold;">项目</th>
-                            <th style="padding: 12px; text-align: right; border: 1px solid #dee2e6; background: #e9ecef; font-weight: bold;">数值</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td rowspan="6" style="padding: 12px; border: 1px solid #dee2e6; background: #f8f9fa; font-weight: bold; vertical-align: top;">基础信息</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">方向</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: ${trade.direction === 'buy' ? 'green' : 'red'};">${trade.direction === 'buy' ? '🟢 做多' : '🔴 做空'}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">开仓时间</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">${trade.entry_time}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">开仓价格</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold;">${trade.entry_price.toFixed(4)}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">平仓时间</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">${trade.exit_time}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">平仓价格</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold;">${trade.exit_price.toFixed(4)}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">仓位大小</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold;">${trade.size.toFixed(4)}</td>
-                        </tr>
-                        
-                        <tr>
-                            <td rowspan="5" style="padding: 12px; border: 1px solid #dee2e6; background: #e3f2fd; font-weight: bold; vertical-align: top;">保证金信息</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">杠杆倍数</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: #1976d2;">${trade.leverage}x</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">仓位价值</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold;">${(trade.size * trade.entry_price).toFixed(2)} USDT</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">保证金占用</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: #1976d2;">${trade.required_margin} USDT</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">保证金比例</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold;">${trade.margin_ratio}%</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">保证金回报</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: ${trade.profit >= 0 ? 'green' : 'red'};">${((trade.profit / trade.required_margin) * 100).toFixed(1)}%</td>
-                        </tr>
-                        
-                        <tr>
-                            <td rowspan="4" style="padding: 12px; border: 1px solid #dee2e6; background: #fff3e0; font-weight: bold; vertical-align: top;">成本明细</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">手续费</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: #d68910;">${trade.commission_costs} USDT</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">资金费率</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: #e67e22;">${trade.funding_costs} USDT</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">滑点成本</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: #8e44ad;">${trade.slippage_costs} USDT</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; font-weight: bold;">总成本</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: #d68910; background: #fff8e1;">${(trade.commission_costs + trade.funding_costs + trade.slippage_costs).toFixed(2)} USDT</td>
-                        </tr>
-                        
-                        <tr>
-                            <td rowspan="4" style="padding: 12px; border: 1px solid #dee2e6; background: #f3e5f5; font-weight: bold; vertical-align: top;">收益分析</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">毛利润</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: ${trade.gross_profit >= 0 ? 'green' : 'red'};">${trade.gross_profit} USDT</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; font-weight: bold;">净利润</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: ${trade.profit >= 0 ? 'green' : 'red'}; background: ${trade.profit >= 0 ? '#e8f5e8' : '#ffeaea'};">${trade.profit} USDT</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">收益率</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: ${trade.profit_pct >= 0 ? 'green' : 'red'};">${trade.profit_pct}%</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border: 1px solid #dee2e6;">平仓原因</td>
-                            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold;">${trade.reason}</td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div id="klineChart" class="kline-chart-container" style="margin-bottom: 20px;"></div>
+                
+                <div class="trade-detail-simple">
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+                        <div class="trade-detail-row" style="border-bottom: none;">
+                            <span class="trade-detail-label">方向:</span>
+                            <span class="trade-detail-value ${trade.direction === 'buy' ? 'highlight-positive' : 'highlight-negative'}">
+                                ${trade.direction === 'buy' ? '做多' : '做空'}
+                            </span>
+                        </div>
+                        <div class="trade-detail-row" style="border-bottom: none;">
+                            <span class="trade-detail-label">开仓:</span>
+                            <span class="trade-detail-value">${trade.entry_price ? trade.entry_price.toFixed(4) : '-'}</span>
+                        </div>
+                        <div class="trade-detail-row" style="border-bottom: none;">
+                            <span class="trade-detail-label">平仓:</span>
+                            <span class="trade-detail-value">${trade.exit_price ? trade.exit_price.toFixed(4) : '-'}</span>
+                        </div>
+                        <div class="trade-detail-row" style="border-bottom: none;">
+                            <span class="trade-detail-label">仓位:</span>
+                            <span class="trade-detail-value">${trade.size ? trade.size.toFixed(4) : '-'}</span>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 10px;">
+                        <div class="trade-detail-row" style="border-bottom: none;">
+                            <span class="trade-detail-label">杠杆:</span>
+                            <span class="trade-detail-value">${trade.leverage || 1}x</span>
+                        </div>
+                        <div class="trade-detail-row" style="border-bottom: none;">
+                            <span class="trade-detail-label">保证金:</span>
+                            <span class="trade-detail-value">${(trade.required_margin || 0).toFixed(0)} USDT</span>
+                        </div>
+                        <div class="trade-detail-row" style="border-bottom: none;">
+                            <span class="trade-detail-label">总成本:</span>
+                            <span class="trade-detail-value" style="color: #c0392b;">${(trade.total_costs || 0).toFixed(2)} USDT</span>
+                        </div>
+                        <div class="trade-detail-row" style="border-bottom: none;">
+                            <span class="trade-detail-label">净收益:</span>
+                            <span class="trade-detail-value ${(trade.profit || 0) >= 0 ? 'highlight-positive' : 'highlight-negative'}">
+                                ${(trade.profit || 0).toFixed(2)} USDT
+                            </span>
+                        </div>
+                    </div>
+                </div>
             `;
-            
-            // K线图占位
-            document.getElementById('klineChart').innerHTML = '<p style="text-align: center; padding: 50px; color: #666;">📈 K线图将在此显示</p>';
+
+            // 生成K线图
+            generateTradeKlineChart(trade);
             
             modal.style.display = 'block';
+        }
+        
+        function generateTradeKlineChart(trade) {
+            if (!klineData || klineData.length === 0) {
+                document.getElementById('klineChart').innerHTML = '<p style="text-align: center; padding: 50px; color: #7f8c8d;">暂无K线数据</p>';
+                return;
+            }
+            
+            try {
+                // 找到开仓和平仓时间对应的K线索引
+                const entryTime = new Date(trade.entry_time);
+                const exitTime = new Date(trade.exit_time);
+                
+                let entryIndex = -1;
+                let exitIndex = -1;
+                
+                // 查找最接近的K线
+                for (let i = 0; i < klineData.length; i++) {
+                    const klineTime = new Date(klineData[i].timestamp);
+                    if (entryIndex === -1 && klineTime >= entryTime) {
+                        entryIndex = i;
+                    }
+                    if (klineTime >= exitTime) {
+                        exitIndex = i;
+                        break;
+                    }
+                }
+                
+                if (entryIndex === -1 || exitIndex === -1) {
+                    document.getElementById('klineChart').innerHTML = '<p style="text-align: center; padding: 50px; color: #7f8c8d;">无法找到对应的K线数据</p>';
+                    return;
+                }
+                
+                // 获取前30根和后30根K线
+                const startIndex = Math.max(0, entryIndex - 30);
+                const endIndex = Math.min(klineData.length - 1, exitIndex + 30);
+                
+                const chartData = klineData.slice(startIndex, endIndex + 1);
+                
+                // 准备Plotly数据
+                const x = chartData.map(d => d.timestamp);
+                const open = chartData.map(d => d.open);
+                const high = chartData.map(d => d.high);
+                const low = chartData.map(d => d.low);
+                const close = chartData.map(d => d.close);
+                const volume = chartData.map(d => d.volume);
+                
+                // 创建K线图
+                const traces = [
+                    {
+                        x: x,
+                        open: open,
+                        high: high,
+                        low: low,
+                        close: close,
+                        type: 'candlestick',
+                        name: 'K线',
+                        increasing: {line: {color: '#27ae60'}},
+                        decreasing: {line: {color: '#e74c3c'}}
+                    }
+                ];
+                
+                // 添加开仓和平仓标记
+                if (entryIndex >= startIndex && entryIndex <= endIndex) {
+                    traces.push({
+                        x: [trade.entry_time],
+                        y: [trade.entry_price],
+                        mode: 'markers',
+                        marker: {
+                            color: trade.direction === 'buy' ? '#27ae60' : '#e74c3c',
+                            size: 15,
+                            symbol: trade.direction === 'buy' ? 'triangle-up' : 'triangle-down'
+                        },
+                        name: '开仓点',
+                        showlegend: true
+                    });
+                }
+                
+                if (exitIndex >= startIndex && exitIndex <= endIndex) {
+                    traces.push({
+                        x: [trade.exit_time],
+                        y: [trade.exit_price],
+                        mode: 'markers',
+                        marker: {
+                            color: trade.direction === 'buy' ? '#58d68d' : '#f1948a',
+                            size: 15,
+                            symbol: trade.direction === 'buy' ? 'triangle-down' : 'triangle-up'
+                        },
+                        name: '平仓点',
+                        showlegend: true
+                    });
+                }
+                
+                // 添加止损线
+                if (trade.stop_loss) {
+                    traces.push({
+                        x: [x[0], x[x.length-1]],
+                        y: [trade.stop_loss, trade.stop_loss],
+                        mode: 'lines',
+                        line: {
+                            color: '#e74c3c',
+                            width: 2,
+                            dash: 'dash'
+                        },
+                        name: '止损线',
+                        showlegend: true
+                    });
+                }
+                
+                // 添加止盈线
+                if (trade.take_profit_1) {
+                    traces.push({
+                        x: [x[0], x[x.length-1]],
+                        y: [trade.take_profit_1, trade.take_profit_1],
+                        mode: 'lines',
+                        line: {
+                            color: '#27ae60',
+                            width: 2,
+                            dash: 'dot'
+                        },
+                        name: '止盈1',
+                        showlegend: true
+                    });
+                }
+                
+                const layout = {
+                    title: {
+                        text: `交易区间K线图 (${trade.direction === 'buy' ? '做多' : '做空'}) - 成本: ${(trade.total_costs || 0).toFixed(2)} USDT`,
+                        font: { size: 16, color: '#2c3e50' }
+                    },
+                    xaxis: {
+                        title: '时间',
+                        rangeslider: {visible: false}
+                    },
+                    yaxis: {
+                        title: '价格'
+                    },
+                    showlegend: true,
+                    height: 450,
+                    plot_bgcolor: '#fff',
+                    paper_bgcolor: '#fff'
+                };
+                
+                Plotly.newPlot('klineChart', traces, layout);
+                
+            } catch (error) {
+                console.error('生成K线图失败:', error);
+                document.getElementById('klineChart').innerHTML = '<p style="text-align: center; padding: 50px; color: #e74c3c;">K线图生成失败</p>';
+            }
         }
         
         function closeTradeDetail() {
@@ -842,27 +1004,46 @@
             }
         }
         
+        // ESC键关闭弹窗
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeTradeDetail();
+            }
+        });
+        
         // 翻页函数
         function updatePagination() {
             totalPages = Math.ceil(Math.max(1, allTrades.length) / pageSize);
             document.getElementById('currentPage').textContent = currentPage;
+            document.getElementById('currentPage2').textContent = currentPage;
             document.getElementById('totalPages').textContent = totalPages;
+            document.getElementById('totalPages2').textContent = totalPages;
+            
+            // 更新按钮状态
+            const prevButtons = document.querySelectorAll('.pagination button:nth-child(2)');
+            const nextButtons = document.querySelectorAll('.pagination button:nth-child(4)');
+            
+            prevButtons.forEach(btn => btn.disabled = currentPage <= 1);
+            nextButtons.forEach(btn => btn.disabled = currentPage >= totalPages);
         }
         
         function firstPage() {
             currentPage = 1;
             updatePagination();
+            renderTrades();
         }
         
         function lastPage() {
             currentPage = totalPages;
             updatePagination();
+            renderTrades();
         }
         
         function prevPage() {
             if (currentPage > 1) {
                 currentPage--;
                 updatePagination();
+                renderTrades();
             }
         }
         
@@ -870,6 +1051,20 @@
             if (currentPage < totalPages) {
                 currentPage++;
                 updatePagination();
+                renderTrades();
+            }
+        }
+        
+        function gotoPage() {
+            const input = document.getElementById('gotoPage');
+            const page = parseInt(input.value);
+            if (page >= 1 && page <= totalPages) {
+                currentPage = page;
+                updatePagination();
+                renderTrades();
+                input.value = '';
+            } else {
+                alert(`请输入有效的页码 (1-${totalPages})`);
             }
         }
         
@@ -877,6 +1072,7 @@
             pageSize = parseInt(document.getElementById('pageSize').value);
             currentPage = 1;
             updatePagination();
+            renderTrades();
         }
         
         function showTab(tabName) {
@@ -892,9 +1088,6 @@
             document.getElementById(tabName).classList.add('active');
             event.target.classList.add('active');
         }
-        
-        // 初始化
-        updatePagination();
     </script>
 </body>
 </html>

@@ -1,0 +1,15 @@
+# Bull Market Params配置文件
+# Pinbar策略深度优化系统
+
+# 基础配置
+name: "Bull Market Params"
+version: "1.0.0"
+created: "2024-12"
+
+# TODO: 添加具体配置参数
+parameters:
+  # 示例参数
+  risk_level: 0.02
+  max_position_size: 0.1
+  
+# TODO: 根据具体需求修改配置结构
