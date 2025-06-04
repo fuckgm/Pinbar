@@ -890,8 +890,28 @@ class TrendTracker:
         )
     
     # ===== 趋势跟踪决策方法 =====
+    def should_extend_profit_target(self, trend_info: TrendInfo, current_profit_pct: float) -> bool:
+        """判断是否应该延长止盈目标 - 激进版"""
+        if not trend_info:
+            return False
+        
+        # 🔥 激进的延长条件
+        min_profit_for_extension = 0.3  # 从1.0%降低到0.3%
+        min_trend_strength = 2          # 从3降低到2
+        min_confidence = 0.4            # 从0.6降低到0.4
+        
+        # 基础条件检查 - 放宽要求
+        if (current_profit_pct >= min_profit_for_extension and 
+            trend_info.strength.value >= min_trend_strength and 
+            trend_info.confidence >= min_confidence):
+            
+            print(f"✅ 延长止盈: 利润{current_profit_pct:.1f}% 趋势{trend_info.strength.value} 置信{trend_info.confidence:.2f}")
+            return True
+        
+        print(f"✗ 不延长止盈: 利润{current_profit_pct:.1f}% 趋势{trend_info.strength.value} 置信{trend_info.confidence:.2f}")
+        return False
     
-    def should_extend_profit_target(self, trend_info: TrendInfo, 
+    def should_extend_profit_target_原版(self, trend_info: TrendInfo, 
                                   current_profit_pct: float) -> bool:
         """
         判断是否应该延长止盈目标
@@ -923,8 +943,32 @@ class TrendTracker:
         
         print(f"✗ 不延长止盈: 趋势强度{trend_info.strength.name} 利润{current_profit_pct:.1f}%")
         return False
-    
-    def calculate_dynamic_profit_target(self, trend_info: TrendInfo, 
+    def calculate_dynamic_profit_target(self, trend_info: TrendInfo, entry_price: float, direction: str) -> float:
+        """计算动态止盈目标 - 激进版"""
+        if not trend_info:
+            return entry_price * (1.02 if direction == 'buy' else 0.98)
+        
+        # 🔥 激进的盈亏比目标
+        base_targets = {
+            TrendStrength.WEAK: 0.02,        # 从0.015提高到0.02
+            TrendStrength.MODERATE: 0.035,   # 从0.025提高到0.035  
+            TrendStrength.STRONG: 0.06,      # 从0.04提高到0.06 ⭐关键
+            TrendStrength.VERY_STRONG: 0.10, # 从0.08提高到0.10
+            TrendStrength.EXTREME: 0.15      # 从0.12提高到0.15
+        }
+        
+        target_pct = base_targets.get(trend_info.strength, 0.02)
+        
+        # 置信度加成 - 更激进
+        confidence_boost = min(0.05, trend_info.confidence * 0.08)  # 从0.05提高到0.08
+        final_target_pct = target_pct + confidence_boost
+        
+        if direction == 'buy':
+            return entry_price * (1 + final_target_pct)
+        else:
+            return entry_price * (1 - final_target_pct)
+            
+    def calculate_dynamic_profit_target_原版(self, trend_info: TrendInfo, 
                                       entry_price: float, direction: str) -> float:
         """
         计算动态止盈目标

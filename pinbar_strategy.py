@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-增强版Pinbar策略 - 集成趋势跟踪 (修复版)
-解决过早止盈问题，增加趋势跟踪能力，修复成本计算和保证金统计
+博大行情版Pinbar策略 - 小仓位高杠杆博大利润
+专注捕获大趋势，合理运用杠杆，严格风险控制
 """
 
 import pandas as pd
@@ -18,17 +18,18 @@ from dynamic_leverage_manager import DynamicLeverageManager
 from trend_tracker import TrendTracker, TrendInfo, TrendDirection, TrendStrength
 
 class SupportResistanceFinder:
-    """支撑阻力位识别器 - 保持原有逻辑"""
+    """支撑阻力位识别器 - 博大行情版"""
     
     def __init__(self):
-        self.swing_period = 10
+        # 支撑阻力位识别器参数调整
+        self.swing_period = 8               # 从12降到8
         self.min_touches = 2
-        self.price_tolerance = 0.002
-        self.lookback_period = 100
-        self.time_decay_factor = 0.01
+        self.price_tolerance = 0.005        # 从0.003放宽到0.005
+        self.lookback_period = 60           # 从80降到60
+        self.time_decay_factor = 0.02       # 从0.015调到0.02
         
     def find_key_levels(self, data: pd.DataFrame) -> List[Dict[str, Any]]:
-        """识别关键支撑阻力位"""
+        """识别关键支撑阻力位 - 重点识别重要突破位"""
         if len(data) < self.lookback_period:
             return []
         
@@ -38,9 +39,10 @@ class SupportResistanceFinder:
         swing_highs = self._find_swing_points(recent_data, 'high')
         swing_lows = self._find_swing_points(recent_data, 'low')
         
+        # 只保留最重要的关键位，但降低强度要求
         for price, idx in swing_highs:
             strength = self._calculate_level_strength(recent_data, price, idx, 'resistance')
-            if strength > 1.0:
+            if strength > 1.5:  # 从2.5降到1.5
                 levels.append({
                     'price': price,
                     'type': 'resistance', 
@@ -50,7 +52,7 @@ class SupportResistanceFinder:
         
         for price, idx in swing_lows:
             strength = self._calculate_level_strength(recent_data, price, idx, 'support')
-            if strength > 1.0:
+            if strength > 1.5:  # 从2.5降到1.5
                 levels.append({
                     'price': price,
                     'type': 'support',
@@ -58,7 +60,7 @@ class SupportResistanceFinder:
                     'age': len(recent_data) - idx
                 })
         
-        return sorted(levels, key=lambda x: x['strength'], reverse=True)[:20]
+        return sorted(levels, key=lambda x: x['strength'], reverse=True)[:12]  # 从8个增加到12个
     
     def _find_swing_points(self, data: pd.DataFrame, column: str) -> List[Tuple[float, int]]:
         """识别摆动高低点"""
@@ -102,7 +104,7 @@ class SupportResistanceFinder:
                     volume_weight += row.get('volume', 1)
         
         age = len(data) - original_idx
-        time_factor = max(0.1, 1 - age * self.time_decay_factor)
+        time_factor = max(0.2, 1 - age * self.time_decay_factor)
         strength = touches * (1 + volume_weight / 1000000) * time_factor
         return strength
     
@@ -116,106 +118,106 @@ class SupportResistanceFinder:
 
 class EnhancedPinbarStrategy(bt.Strategy):
     """
-    增强版Pinbar策略 - 集成趋势跟踪 (修复版)
+    博大行情版Pinbar策略 - 小仓位高杠杆博大利润
     
-    主要修复：
-    1. 修复TrendInfo对象访问错误
-    2. 完善成本计算（手续费、滑点、资金费率）
-    3. 修复保证金统计和记录
-    4. 修复交易记录数据结构
+    核心特点：
+    1. 小仓位博大利润，承受较大回调
+    2. 合理运用杠杆，多币种时留足保证金
+    3. 最多4个币种同时持仓
+    4. 给大行情足够的发展空间
     """
     
     def __init__(self, trading_params: TradingParams, 
                  detector_config: Dict[str, Any] = None,
-                 use_dynamic_leverage: bool = False):
+                 use_dynamic_leverage: bool = True):
         
-        print("🚀 初始化增强版Pinbar策略 - 成本修复版...")
+        print("🚀 初始化博大行情版Pinbar策略...")
         
         # 基础参数
         self.trading_params = trading_params
-        self.use_dynamic_leverage = use_dynamic_leverage
         
-        # === 优化后的风险控制参数 ===
-        self.max_account_loss_pct = 30.0        # 降低到30%（原50%）
-        self.max_margin_per_trade_pct = 20.0    # 提高到20%（原15%）
-        self.min_account_balance = 100.0
+        # === 博大行情核心参数 ===
+        self.max_positions = 4                   # 最多4个币种
+        self.max_single_risk = 0.015            # 单笔风险1.5%（小仓位）
+        self.max_single_margin = 0.12           # 单币种最大保证金12%
+        self.max_total_margin = 0.50            # 总保证金不超过50%
+        self.margin_buffer_ratio = 0.30         # 保证金缓冲30%
         
-        # === 趋势跟踪参数 ===
-        self.enable_trend_tracking = True       # 启用趋势跟踪
-        self.trend_profit_extension = True      # 趋势中延长止盈
-        self.min_trend_profit_pct = 1.0         # 趋势中最小利润1%
-        self.max_trend_profit_pct = 15.0        # 趋势中最大利润15%
+        # === 杠杆策略 ===
+        self.base_leverage = 3
+        self.max_leverage = 8
+        self.leverage_by_positions = {1: 8, 2: 5, 3: 3, 4: 2}  # 根据持仓数量调整杠杆
         
-        # === 动态止盈参数 ===
-        self.enable_dynamic_targets = True     # 启用动态止盈
-        self.profit_lock_threshold = 3.0       # 3%利润后开始锁定
-        self.trailing_stop_buffer = 1.5        # 追踪止损缓冲1.5%
+        # === 博大行情管理 ===
+        self.profit_protection_trigger = 0.05   # 5%利润时保护
+        self.partial_close_ratio = 0.30         # 平仓30%，保留70%博大行情
+        self.big_move_thresholds = [0.08, 0.15, 0.35]  # 8%, 15%, 35%利润阶段（降低门槛）
+        self.trailing_distances = [0.04, 0.06, 0.10]   # 对应的追踪距离（收紧一些）
         
-        # === 部分平仓优化参数 ===
-        self.smart_partial_close = True        # 智能部分平仓
-        self.first_partial_ratio = 0.4         # 第一次部分平仓40%（原60%）
-        self.second_partial_ratio = 0.3        # 第二次部分平仓30%
-        self.final_position_ratio = 0.3        # 保留30%追趋势
+        # === 智能持仓控制 ===
+        self.min_holding_bars = 5               # 最少持仓3根K线
+        self.max_holding_bars = 50              # 最多持仓50根K线
+        self.consolidation_exit_bars = 8        # 盘整区间8根K线后考虑退出
+        self.breakout_threshold = 0.015         # 突破盘整区间的阈值1.5%
         
-        # === 修复：标准化交易成本参数 ===
-        # 币安标准费率 (2024年标准)
-        self.commission_rate = 0.001           # 0.1% 手续费
-        self.taker_fee_rate = 0.001           # Taker费率 0.1%
-        self.maker_fee_rate = 0.001           # Maker费率 0.1%
-        self.funding_rate = 0.0001            # 资金费率 0.01%（每8小时）
-        self.slippage_rate = 0.0005           # 滑点 0.05%
-        self.funding_interval_hours = 8        # 资金费率收取间隔
+        # === 方向记忆系统 ===
+        self.direction_memory = {}              # 记录失败方向
+        self.memory_decay_bars = 20             # 记忆衰减周期
+        self.direction_bias_strength = 0.3      # 方向偏好强度
+        self.recent_failures = []               # 最近失败记录
         
-        print(f"✅ 标准化交易成本参数:")
-        print(f"   Taker手续费: {self.taker_fee_rate*100:.3f}%")
-        print(f"   Maker手续费: {self.maker_fee_rate*100:.3f}%")
-        print(f"   滑点率: {self.slippage_rate*100:.3f}%")
-        print(f"   资金费率: {self.funding_rate*100:.4f}% (每{self.funding_interval_hours}小时)")
+        # === 动态持仓判断 ===
+        self.volatility_factor = 1.0            # 波动率因子
+        self.trend_strength_threshold = 0.6     # 趋势强度门槛
+        self.consolidation_range_pct = 0.02     # 盘整区间判断2%
+        
+        # === 交易成本简化 ===
+        self.unified_cost_rate = 0.001          # 统一成本0.1%
+        self.slippage_rate = 0.0005             # 滑点0.05%
+        
+        print(f"✅ 博大行情参数设置:")
+        print(f"   - 最大持仓: {self.max_positions}个币种")
+        print(f"   - 单笔风险: {self.max_single_risk*100:.1f}%")
+        print(f"   - 杠杆策略: 1仓{self.leverage_by_positions[1]}x, 4仓{self.leverage_by_positions[4]}x")
+        print(f"   - 利润保护: {self.profit_protection_trigger*100:.0f}%时平仓{self.partial_close_ratio*100:.0f}%")
+        print(f"   - 最大浮亏: {self.max_floating_loss*100:.0f}%")
+        print(f"   - 最少持仓: {self.min_holding_bars}根K线")
+        print(f"   - 盘整阈值: {self.consolidation_range_pct*100:.1f}%")
         
         # 初始化组件
         self.sr_finder = SupportResistanceFinder()
         
-        # 初始化趋势跟踪器
-        trend_config = self._get_trend_tracker_config()
+        # 趋势跟踪器（简化版）
+        trend_config = self._get_trend_config()
         self.trend_tracker = TrendTracker(trend_config)
         
-        # 初始化信号检测器（放宽参数）
-        detector_config = detector_config or self._get_relaxed_detector_config()
+        # 信号检测器（高质量配置）
+        detector_config = detector_config or self._get_high_quality_detector_config()
         self.pinbar_detector = EnhancedPinbarDetector(detector_config)
         
-        # 计算最小所需K线数量
-        self.min_required_bars = max(
-            self.pinbar_detector.trend_period,
-            self.trend_tracker.trend_ma_period,
-            self.sr_finder.lookback_period,
-            80  # 降低到80根K线（原100根）
-        )
-        
-        # 动态杠杆管理器
-        if use_dynamic_leverage:
-            self.leverage_manager = DynamicLeverageManager()
-            print("✅ 启用动态杠杆管理")
+        # 计算最小所需K线数量（减少）
+        self.min_required_bars = 50
         
         # 交易状态管理
         self.active_trades = {}
         self.trade_counter = 0
         self.trade_history = []
-        self.signal_history = []
-        self.pending_signals = {}
-        # ✅ 新增：信号统计收集
+        
+        # 风险监控
+        self.current_floating_loss = 0.0
+        self.max_drawdown_seen = 0.0
+        self.trading_paused = False
+        self.pause_reason = ""
+        
+        # 信号统计
         self.signal_stats = {
-            'total_signals': 0,              # 总检测信号数
-            'executed_signals': 0,           # 执行信号数  
-            'high_quality_signals': 0,       # 高质量信号数
-            'trend_aligned_signals': 0,      # 趋势对齐信号数
-            'signal_strengths': [],          # 信号强度列表
-            'confidence_scores': [],         # 置信度分数列表
-            'successful_signals': 0,         # 成功信号数（盈利的交易）
-            'signal_success_rate': 0.0       # 信号成功率
+            'total_signals': 0,
+            'executed_signals': 0,
+            'successful_signals': 0,
+            'signal_success_rate': 0.0,
+            'big_move_signals': 0,  # 大行情信号数
+            'big_move_success': 0   # 大行情成功数
         }
-        # 趋势状态缓存
-        self.current_trend_info = None
-        self.last_trend_update = 0
         
         # 统计信息
         self.account_initial = self.broker.getcash()
@@ -230,70 +232,60 @@ class EnhancedPinbarStrategy(bt.Strategy):
         self.data_cache = []
         self.key_levels = []
         self.last_key_levels_update = 0
+        self.current_trend_info = None
         
-        # 账户保护状态
-        self.account_protection_active = False
-        
-        print(f"✅ 策略初始化完成 (成本修复版):")
-        print(f"   - 趋势跟踪: {self.enable_trend_tracking}")
-        print(f"   - 动态止盈: {self.enable_dynamic_targets}")
-        print(f"   - 智能部分平仓: {self.smart_partial_close}")
-        print(f"   - 最大账户亏损: {self.max_account_loss_pct}%")
-        print(f"   - 单笔最大保证金: {self.max_margin_per_trade_pct}%")
+        print(f"✅ 博大行情版策略初始化完成")
 
-    def _get_trend_tracker_config(self) -> Dict[str, Any]:
-        """获取趋势跟踪器配置"""
+    def _get_trend_config(self) -> Dict[str, Any]:
+        """获取趋势跟踪配置 - 简化版"""
         return {
             'fast_ma_period': 8,
             'slow_ma_period': 21,
             'trend_ma_period': 50,
             'adx_period': 14,
-            'roc_period': 10,
-            'momentum_period': 14,
             'weak_adx': 20,
-            'moderate_adx': 25,      # 降低阈值，更容易识别趋势
-            'strong_adx': 35,        # 降低阈值
-            'extreme_adx': 50,       # 降低阈值
-            'volume_ma_period': 20,
-            'volume_surge_threshold': 1.3,  # 降低成交量要求
-            'breakout_lookback': 20,
-            'breakout_threshold': 0.015,    # 降低突破要求到1.5%
-            'atr_expansion_threshold': 1.2,
-            'atr_lookback': 10
+            'moderate_adx': 30,      # 提高阈值，识别真正的强趋势
+            'strong_adx': 40,
+            'extreme_adx': 60,
+            'volume_surge_threshold': 1.5,
+            'breakout_threshold': 0.02,
+            'atr_expansion_threshold': 1.3
         }
 
-    def _get_relaxed_detector_config(self) -> Dict[str, Any]:
-        """获取放宽的检测器配置 - 增加信号频率"""
+    def _get_high_quality_detector_config(self) -> Dict[str, Any]:
+        """获取高质量信号检测配置 - 博大行情版（调整后的宽松版）"""
         return {
-            # === 放宽Pinbar形态参数 ===
-            'min_shadow_body_ratio': 2.0,      # 降低到2倍（原3倍）
-            'max_body_ratio': 0.30,            # 提高到30%（原20%）
-            'min_candle_size': 0.003,          # 降低最小K线大小
-            'max_opposite_shadow_ratio': 0.4,  # 提高对侧影线容忍度
+            # === Pinbar形态参数（适度放宽）===
+            'min_shadow_body_ratio': 2.0,      # 从2.8降到2.0
+            'max_body_ratio': 0.30,            # 从0.20放宽到0.30
+            'min_candle_size': 0.005,          # 从0.008降到0.005
+            'max_opposite_shadow_ratio': 0.40, # 从0.30放宽到0.40
             
-            # === 放宽确认机制 ===
-            'require_confirmation': True,
-            'confirmation_strength': 0.2,      # 降低确认强度（原0.3）
+            # === 确认机制（简化）===
+            'require_confirmation': False,      # 暂时关闭确认机制
+            'confirmation_strength': 0.3,      # 降低确认强度
             
-            # === 技术指标参数 ===
+            # === 技术指标（大幅放宽）===
+            'min_signal_score': 2.5,          # 从4.5大幅降到2.5
+            'rsi_oversold': 35,                # 从30放宽到35
+            'rsi_overbought': 65,              # 从70收紧到65
+            'volume_threshold': 1.2,           # 从1.6降到1.2
+            'level_proximity': 0.008,          # 从0.004放宽到0.008
+            'adx_threshold': 15,               # 从25降到15
+            'atr_percentile': 25,              # 从35降到25
+            
+            # 其他参数（放宽）
             'trend_period': 20,
             'rsi_period': 14,
-            'rsi_oversold': 30,               # 放宽到30（原25）
-            'rsi_overbought': 70,             # 放宽到70（原75）
             'bb_period': 20,
-            'volume_threshold': 1.2,          # 降低成交量要求（原1.5）
-            'sr_lookback': 50,
-            'level_proximity': 0.005,         # 提高关键位接近度（原0.003）
-            'min_signal_score': 3,            # 降低最低评分（原4）
+            'sr_lookback': 40,                 # 从50降到40
             'adx_period': 14,
-            'adx_threshold': 20,              # 降低ADX要求（原25）
             'atr_period': 14,
-            'atr_percentile': 25,             # 降低ATR要求（原30）
-            'volume_ma_period': 20,
-            'volume_threshold_ratio': 0.7,    # 降低成交量比例要求
-            'min_consolidation_bars': 10,     # 降低最小盘整期（原15）
-            'large_move_threshold': 0.04,     # 降低大幅波动阈值
-            'large_move_exclude_bars': 3      # 降低排除周期（原5）
+            'volume_ma_period': 15,            # 从20降到15
+            'volume_threshold_ratio': 1.1,     # 从1.2降到1.1
+            'min_consolidation_bars': 8,       # 从12降到8
+            'large_move_threshold': 0.03,      # 从0.05降到0.03
+            'large_move_exclude_bars': 3       # 从5降到3
         }
 
     def prenext(self):
@@ -301,7 +293,7 @@ class EnhancedPinbarStrategy(bt.Strategy):
         self._update_data_cache()
 
     def next(self):
-        """主交易逻辑 - 增强版"""
+        """主交易逻辑 - 博大行情版"""
         # 1. 更新数据缓存
         self._update_data_cache()
         
@@ -309,64 +301,27 @@ class EnhancedPinbarStrategy(bt.Strategy):
         if len(self.data_cache) < self.min_required_bars:
             return
         
-        # 3. 检查账户保护
-        if self._check_account_protection():
-            return
+        # 3. 更新趋势信息（每10根K线更新一次）
+        if len(self.data_cache) % 10 == 0:
+            self._update_trend_info()
         
-        # 4. 更新趋势分析（每5根K线更新一次）
-        if len(self.data_cache) - self.last_trend_update >= 5:
-            self._update_trend_analysis()
-        
-        # 5. 更新关键位（每20根K线更新一次）
-        if len(self.data_cache) - self.last_key_levels_update >= 20:
+        # 3. 更新关键位（每15根K线更新一次，从20降到15）
+        if len(self.data_cache) - self.last_key_levels_update >= 15:
             self._update_key_levels()
         
-        # 6. 管理现有持仓（趋势感知版）
-        self._manage_active_trades_with_trend()
+        # 5. 风险监控和保证金检查
+        if self._check_risk_controls():
+            return
         
-        # 7. 检查待确认信号
-        self._check_signal_confirmations()
+        # 6. 管理现有持仓（博大行情版）
+        self._manage_big_move_positions()
         
-        # 8. 检查新信号
-        self._check_for_new_signals()
+        # 7. 检查新信号（如果没有暂停且有位置）
+        if not self.trading_paused and len(self.active_trades) < self.max_positions:
+            self._check_for_big_move_signals()
         
-        # 9. 更新账户统计
+        # 8. 更新账户统计
         self._update_account_stats()
-
-    def _update_trend_analysis(self):
-        """更新趋势分析"""
-        try:
-            df = pd.DataFrame(self.data_cache)
-            self.current_trend_info = self.trend_tracker.analyze_trend(df)
-            self.last_trend_update = len(self.data_cache)
-            
-            # 调试信息
-            if self.current_trend_info:
-                trend = self.current_trend_info
-                print(f"📈 趋势更新: {trend.direction.value} | "
-                      f"强度: {trend.strength.value} | "
-                      f"置信度: {trend.confidence:.2f} | "
-                      f"动量: {trend.momentum_score:.2f}")
-                      
-        except Exception as e:
-            print(f"❌ 趋势分析失败: {e}")
-
-    def _check_account_protection(self) -> bool:
-        """检查账户保护机制 - 优化版"""
-        current_value = self.broker.getvalue()
-        loss_pct = (self.account_initial - current_value) / self.account_initial * 100
-        
-        if loss_pct >= self.max_account_loss_pct:
-            if not self.account_protection_active:
-                print(f"🚨 账户保护激活！亏损 {loss_pct:.2f}% >= {self.max_account_loss_pct}%")
-                self.account_protection_active = True
-                
-                # 平掉所有持仓
-                for trade_id in list(self.active_trades.keys()):
-                    self._close_position(trade_id, "账户保护")
-            return True
-        
-        return False
 
     def _update_data_cache(self):
         """更新数据缓存"""
@@ -381,9 +336,17 @@ class EnhancedPinbarStrategy(bt.Strategy):
         
         self.data_cache.append(current_data)
         
-        # 保留最近1000根K线
-        if len(self.data_cache) > 1000:
+        # 保留最近600根K线
+        if len(self.data_cache) > 600:
             self.data_cache.pop(0)
+
+    def _update_trend_info(self):
+        """更新趋势信息"""
+        try:
+            df = pd.DataFrame(self.data_cache)
+            self.current_trend_info = self.trend_tracker.analyze_trend(df)
+        except Exception as e:
+            print(f"❌ 趋势分析失败: {e}")
 
     def _update_key_levels(self):
         """更新关键支撑阻力位"""
@@ -397,235 +360,492 @@ class EnhancedPinbarStrategy(bt.Strategy):
         except Exception as e:
             print(f"❌ 更新关键位失败: {e}")
 
-    def _check_for_new_signals(self):
-        """检查新信号 - 趋势感知版"""
-        if len(self.active_trades) >= self.trading_params.max_positions:
-            return
+    def _check_risk_controls(self) -> bool:
+        """风险控制检查 - 博大行情版"""
+        current_value = self.broker.getvalue()
+        current_cash = self.broker.getcash()
         
-        if self.account_protection_active:
-            return
+        # 1. 计算浮动损益
+        self.current_floating_loss = self._calculate_floating_loss()
         
+        # 2. 计算当前保证金使用率
+        margin_usage = self._calculate_margin_usage()
+        
+        # 3. 浮亏控制
+        if self.current_floating_loss > self.max_floating_loss:
+            if not self.trading_paused:
+                print(f"🚨 浮亏达到{self.current_floating_loss*100:.1f}%，暂停新开仓")
+                self.trading_paused = True
+                self.pause_reason = f"浮亏过大({self.current_floating_loss*100:.1f}%)"
+            
+            # 浮亏过大时考虑减仓
+            if self.current_floating_loss > self.emergency_stop_loss:
+                print(f"🚨 紧急止损！浮亏达到{self.current_floating_loss*100:.1f}%")
+                self._emergency_reduce_positions()
+                
+        # 4. 保证金预警
+        if margin_usage > 0.4:  # 40%预警
+            print(f"⚠️ 保证金使用率{margin_usage*100:.1f}%，接近限制")
+            
+        if margin_usage > 0.5:  # 50%限制
+            if not self.trading_paused:
+                print(f"🚨 保证金使用率达到{margin_usage*100:.1f}%，暂停开仓")
+                self.trading_paused = True
+                self.pause_reason = f"保证金不足({margin_usage*100:.1f}%)"
+                
+        # 5. 如果风险降低，可以恢复交易
+        if (self.trading_paused and 
+            self.current_floating_loss < self.max_floating_loss * 0.8 and 
+            margin_usage < 0.4):
+            print(f"✅ 风险降低，恢复交易")
+            self.trading_paused = False
+            self.pause_reason = ""
+        
+        return self.trading_paused
+
+    def _calculate_floating_loss(self) -> float:
+        """计算当前浮动亏损比例"""
+        if not self.active_trades:
+            return 0.0
+        
+        total_floating_pnl = 0.0
+        current_price = self.data.close[0]
+        
+        for trade_info in self.active_trades.values():
+            entry_price = trade_info['entry_price']
+            size = trade_info['size']
+            direction = trade_info['direction']
+            
+            if direction == 'buy':
+                pnl = (current_price - entry_price) * size
+            else:
+                pnl = (entry_price - current_price) * size
+            
+            total_floating_pnl += pnl
+        
+        return abs(min(0, total_floating_pnl)) / self.account_initial
+
+    def _calculate_margin_usage(self) -> float:
+        """计算保证金使用率"""
+        if not self.active_trades:
+            return 0.0
+        
+        total_margin = sum(trade['required_margin'] for trade in self.active_trades.values())
+        return total_margin / self.broker.getvalue()
+
+    def _emergency_reduce_positions(self):
+        """紧急减仓"""
+        print(f"🚨 执行紧急减仓")
+        
+        # 按浮亏大小排序，先平浮亏最大的
+        trades_by_loss = []
+        current_price = self.data.close[0]
+        
+        for trade_id, trade_info in self.active_trades.items():
+            profit_pct = self._calculate_current_profit_pct(trade_info, current_price)
+            if profit_pct < 0:  # 只考虑亏损的
+                trades_by_loss.append((trade_id, profit_pct))
+        
+        # 按亏损从大到小排序
+        trades_by_loss.sort(key=lambda x: x[1])
+        
+        # 平掉亏损最大的一半仓位
+        positions_to_close = len(trades_by_loss) // 2 + 1
+        for i in range(min(positions_to_close, len(trades_by_loss))):
+            trade_id = trades_by_loss[i][0]
+            self._close_position(trade_id, "紧急减仓")
+
+    def _print_strategy_status(self):
+        """定期打印策略状态"""
+        current_bar = len(self.data_cache)
+        current_price = self.data_cache[-1]['close']
+        account_value = self.broker.getvalue()
+        
+        print(f"\n━━━ 第{current_bar}根K线 策略状态 ━━━")
+        print(f"💰 账户价值: {account_value:.2f} USDT")
+        print(f"📈 当前价格: {current_price:.4f}")
+        print(f"📊 持仓数量: {len(self.active_trades)}/{self.max_positions}")
+        print(f"🎯 关键位数量: {len(self.key_levels)}")
+        print(f"📉 总信号数: {self.signal_stats['total_signals']}")
+        print(f"✅ 执行信号: {self.signal_stats['executed_signals']}")
+        print(f"🏆 成功信号: {self.signal_stats['successful_signals']}")
+        
+        if self.active_trades:
+            print(f"🔥 当前持仓:")
+            for trade_id, trade in self.active_trades.items():
+                current_profit = self._calculate_current_profit_pct(trade, current_price)
+                bars_held = len(self.data_cache) - trade['entry_bar_index']
+                print(f"   {trade_id}: {trade['direction']} @ {trade['entry_price']:.4f}")
+                print(f"   持仓{bars_held}根K线，当前{current_profit:+.1f}%")
+        
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    
+    def stop(self):
+        """策略结束时的清理工作"""
+        print(f"\n🏁 策略执行完成！")
+        print(f"📊 总计处理 {len(self.data_cache)} 根K线")
+        print(f"🎯 检测信号: {self.signal_stats['total_signals']} 个")
+        print(f"✅ 执行交易: {self.signal_stats['executed_signals']} 个")
+        print(f"🏆 成功交易: {self.signal_stats['successful_signals']} 个")
+        
+        if self.signal_stats['executed_signals'] > 0:
+            success_rate = (self.signal_stats['successful_signals'] / self.signal_stats['executed_signals']) * 100
+            print(f"📈 成功率: {success_rate:.1f}%")
+        
+        final_value = self.broker.getvalue()
+        total_return = (final_value - 10000) / 10000 * 100
+        print(f"💰 最终账户: {final_value:.2f} USDT ({total_return:+.2f}%)")
+        
+        # 强制平仓所有剩余持仓
+        if self.active_trades:
+            print(f"🔄 强制平仓剩余 {len(self.active_trades)} 个持仓")
+            for trade_id in list(self.active_trades.keys()):
+                self._close_position_smart(trade_id, "策略结束强制平仓")
+        """检查大行情信号"""
         if len(self.data_cache) < self.min_required_bars:
+            print(f"🔍 数据不足: {len(self.data_cache)} < {self.min_required_bars}")
             return
 
         df = pd.DataFrame(self.data_cache)
         df_for_signal = df[:-1]  # 检测已完成K线
         
         if len(df_for_signal) < self.min_required_bars:
+            print(f"🔍 信号检测数据不足: {len(df_for_signal)} < {self.min_required_bars}")
+            return
+        
+    def _check_for_big_move_signals(self):
+        """检查大行情信号"""
+        if len(self.data_cache) < self.min_required_bars:
+            if len(self.data_cache) % 50 == 0:  # 每50根K线输出一次
+                print(f"🔍 数据积累中: {len(self.data_cache)}/{self.min_required_bars}")
+            return
+
+        df = pd.DataFrame(self.data_cache)
+        df_for_signal = df[:-1]  # 检测已完成K线
+        
+        if len(df_for_signal) < self.min_required_bars:
+            if len(self.data_cache) % 50 == 0:
+                print(f"🔍 信号检测数据积累中: {len(df_for_signal)}/{self.min_required_bars}")
             return
         
         try:
+            # 每隔一段时间输出检测状态
+            if len(self.data_cache) % 100 == 0:
+                print(f"🔍 第{len(self.data_cache)}根K线：开始信号检测...")
+                print(f"   检测数据长度: {len(df_for_signal)}")
+                print(f"   当前关键位数量: {len(self.key_levels)}")
+                print(f"   当前持仓数量: {len(self.active_trades)}")
+            
             all_signals = self.pinbar_detector.detect_pinbar_patterns(df_for_signal)
             
             if all_signals:
+                print(f"📍 第{len(self.data_cache)}根K线：检测到 {len(all_signals)} 个Pinbar信号")
+                
                 current_bar_index = len(df_for_signal) - 1
                 new_signals = [s for s in all_signals if s.index == current_bar_index]
                 
+                print(f"   当前K线新信号数量: {len(new_signals)}")
+                
                 for signal in new_signals:
-                    # ✅ 新增：收集信号统计
                     self.signal_stats['total_signals'] += 1
-                    self.signal_stats['signal_strengths'].append(signal.signal_strength)
-                    self.signal_stats['confidence_scores'].append(signal.confidence_score)
                     
-                    # 统计高质量信号
-                    if signal.signal_strength >= 4 and signal.confidence_score >= 0.7:
-                        self.signal_stats['high_quality_signals'] += 1
+                    print(f"🎯 发现新信号: {signal.direction} @ {signal.close_price:.4f}")
+                    print(f"    信号强度: {signal.signal_strength:.1f} | 置信度: {signal.confidence_score:.2f}")
                     
-                    # 统计趋势对齐信号
-                    if self.current_trend_info:
-                        trend_aligned = (
-                            (self.current_trend_info.direction == TrendDirection.UP and signal.direction == 'buy') or
-                            (self.current_trend_info.direction == TrendDirection.DOWN and signal.direction == 'sell')
-                        )
-                        if trend_aligned:
-                            self.signal_stats['trend_aligned_signals'] += 1
-                    if self._is_valid_pinbar_signal_with_trend(signal):
-                        signal_id = f"signal_{len(self.pending_signals)}"
-                        self.pending_signals[signal_id] = {
-                            'signal': signal,
-                            'timestamp': signal.timestamp,
-                            'waiting_for_confirmation': True,
-                            'trend_info': self.current_trend_info  # 保存信号时的趋势状态
-                        }
-                        
-                        print(f"🎯 发现Pinbar信号 {signal_id}: {signal.direction} @ {signal.close_price:.4f}")
-                        if self.current_trend_info:
-                            print(f"    趋势状态: {self.current_trend_info.direction.value} "
-                                  f"强度:{self.current_trend_info.strength.value}")
+                    if self._is_big_move_signal(signal):
+                        print(f"✅ 执行大行情信号")
+                        self._execute_big_move_signal(signal)
+                    else:
+                        print(f"❌ 信号未通过验证")
+            else:
+                # 降低输出频率，避免刷屏
+                if len(self.data_cache) % 200 == 0:  # 每200根K线输出一次
+                    print(f"🔍 第{len(self.data_cache)}根K线：暂无Pinbar信号")
                         
         except Exception as e:
-            print(f"❌ 信号检测失败: {e}")
+            print(f"❌ 大行情信号检测失败: {e}")
+            import traceback
+            traceback.print_exc()
 
-    def _is_valid_pinbar_signal_with_trend(self, signal: PinbarSignal) -> bool:
-        """验证Pinbar信号 - 考虑趋势因素"""
+    def _is_big_move_signal(self, signal: PinbarSignal) -> bool:
+        """验证是否为大行情信号 - 加入币种适应性"""
         
-        # 1. 基础质量检查（放宽标准）
-        if signal.confidence_score < 0.3:  # 降低置信度要求（原0.4）
+        print(f"🔍 信号验证: 强度{signal.signal_strength:.1f} 置信度{signal.confidence_score:.2f}")
+        
+        # 1. 基础质量要求
+        if signal.confidence_score < 0.4:
+            print(f"    ❌ 置信度不足: {signal.confidence_score:.2f} < 0.4")
             return False
         
-        if signal.signal_strength < 2:  # 降低强度要求（原3）
+        if signal.signal_strength < 2.5:
+            print(f"    ❌ 信号强度不足: {signal.signal_strength:.1f} < 2.5")
             return False
         
-        # 2. 趋势一致性检查
-        if self.current_trend_info and self.enable_trend_tracking:
-            trend_direction = self.current_trend_info.direction
-            signal_direction = signal.direction
-            
-            # 优先考虑与趋势一致的信号
-            trend_aligned = (
-                (trend_direction == TrendDirection.UP and signal_direction == 'buy') or
-                (trend_direction == TrendDirection.DOWN and signal_direction == 'sell')
-            )
-            
-            # 强趋势中只接受趋势方向信号
-            if (self.current_trend_info.strength.value >= 3 and 
-                self.current_trend_info.confidence > 0.7):
-                if not trend_aligned:
-                    print(f"    强趋势中逆向信号，跳过")
-                    return False
-            
-            # 趋势一致的信号可以放宽其他要求
-            if trend_aligned and self.current_trend_info.confidence > 0.6:
-                print(f"    趋势一致信号，降低其他要求")
-                return True  # 跳过关键位检查
+        print(f"    ✅ 基础质量通过")
         
-        # 3. 关键位检查（放宽要求）
+        # 2. 币种适应性检查 - 根据历史表现调整
+        coin_performance = self._get_coin_performance()
+        if coin_performance['win_rate'] < 0.3 and coin_performance['trades'] >= 5:
+            # 如果这个币种历史胜率很低，提高门槛
+            if signal.confidence_score < 0.6:
+                print(f"    ❌ 低胜率币种需要更高置信度: {signal.confidence_score:.2f} < 0.6")
+                return False
+            if signal.signal_strength < 3.5:
+                print(f"    ❌ 低胜率币种需要更强信号: {signal.signal_strength:.1f} < 3.5")
+                return False
+            print(f"    ✅ 低胜率币种高标准验证通过")
+        
+        # 3. 检查盘整环境
+        if self._is_in_consolidation():
+            print(f"    ❌ 当前处于盘整环境，跳过信号")
+            return False
+        
+        # 4. 方向记忆检查
+        direction_bias = self._get_direction_bias(signal.close_price)
+        if direction_bias and direction_bias != signal.direction:
+            print(f"    ❌ 方向记忆冲突: 建议{direction_bias}，信号{signal.direction}")
+            return False
+        
+        # 5. 趋势环境检查
+        if self.current_trend_info:
+            trend_alignment = self._check_trend_alignment(signal.direction)
+            if not trend_alignment:
+                print(f"    ❌ 趋势环境不支持")
+                return False
+            print(f"    ✅ 趋势环境支持")
+        
+        # 6. 关键位检查（可选）
+        key_level_bonus = 0
         if self.key_levels:
             near_key_level, level_strength = self.sr_finder.is_near_key_level(
                 signal.close_price, self.key_levels
             )
             
-            # 如果不在关键位附近，但趋势强劲，也可以接受
-            if not near_key_level:
-                if (self.current_trend_info and 
-                    self.current_trend_info.strength.value >= 3):
-                    print(f"    强趋势中非关键位信号，接受")
-                    return True
-                else:
-                    print(f"    非强趋势且不在关键位，跳过")
-                    return False
+            if near_key_level and level_strength >= 1.0:
+                key_level_bonus = 0.2  # 关键位加分
+                print(f"    ✅ 接近关键位，强度: {level_strength:.1f} (+0.2分)")
+            else:
+                print(f"    ⚠️ 不在关键位附近")
         
-        # 4. 资金检查
-        current_cash = self.broker.getcash()
-        if current_cash < self.min_account_balance:
-            print(f"    账户余额不足")
+        # 7. 成交量确认
+        volume_bonus = 0
+        if self._check_volume_confirmation():
+            volume_bonus = 0.1  # 成交量加分
+            print(f"    ✅ 成交量确认 (+0.1分)")
+        else:
+            print(f"    ⚠️ 成交量未确认")
+        
+        # 8. 综合评分系统
+        final_score = signal.confidence_score + key_level_bonus + volume_bonus
+        min_required_score = 0.5  # 基础要求
+        
+        if coin_performance['win_rate'] < 0.3 and coin_performance['trades'] >= 5:
+            min_required_score = 0.7  # 低胜率币种要求更高
+        
+        if final_score < min_required_score:
+            print(f"    ❌ 综合评分不足: {final_score:.2f} < {min_required_score:.2f}")
             return False
         
-        print(f"✅ 信号验证通过")
+        # 9. 保证金检查
+        if not self._check_margin_sufficient(signal):
+            print(f"    ❌ 保证金不足")
+            return False
+        
+        print(f"✅ 信号验证通过！综合评分: {final_score:.2f}")
+        self.signal_stats['big_move_signals'] += 1
         return True
+    
+    def _get_coin_performance(self) -> Dict[str, float]:
+        """获取当前币种的历史表现"""
+        if not self.trade_history:
+            return {'win_rate': 0.5, 'avg_profit': 0, 'trades': 0}
+        
+        total_trades = len(self.trade_history)
+        winning_trades = sum(1 for trade in self.trade_history if trade['profit'] > 0)
+        
+        win_rate = winning_trades / total_trades if total_trades > 0 else 0.5
+        avg_profit = np.mean([trade['profit_pct'] for trade in self.trade_history]) if total_trades > 0 else 0
+        
+        return {
+            'win_rate': win_rate,
+            'avg_profit': avg_profit, 
+            'trades': total_trades
+        }
 
-    def _check_signal_confirmations(self):
-        """检查信号确认 - 考虑趋势因素"""
-        current_candle = self.data_cache[-1]
-        confirmed_signals = []
+    def _is_in_consolidation(self) -> bool:
+        """判断是否处于盘整环境"""
+        if len(self.data_cache) < 20:
+            return False
         
-        for signal_id, signal_info in self.pending_signals.items():
-            signal = signal_info['signal']
-            
-            # 趋势强劲时可以更快确认
-            quick_confirm = False
-            if self.current_trend_info and self.current_trend_info.strength.value >= 3:
-                trend_aligned = (
-                    (self.current_trend_info.direction == TrendDirection.UP and signal.direction == 'buy') or
-                    (self.current_trend_info.direction == TrendDirection.DOWN and signal.direction == 'sell')
-                )
-                if trend_aligned:
-                    quick_confirm = True
-            
-            # 检查确认条件
-            if self._is_signal_confirmed_with_trend(signal, current_candle, quick_confirm):
-                print(f"✅ 信号 {signal_id} 获得确认")
-                self._execute_confirmed_signal(signal, signal_id, signal_info.get('trend_info'))
-                confirmed_signals.append(signal_id)
-            else:
-                # 检查超时
-                age = len(self.data_cache) - signal.index - 1
-                timeout = 1 if quick_confirm else 2  # 强趋势中1根K线超时，否则2根
-                if age > timeout:
-                    print(f"❌ 信号 {signal_id} 超时失效")
-                    confirmed_signals.append(signal_id)
+        recent_data = self.data_cache[-20:]
+        highs = [d['high'] for d in recent_data]
+        lows = [d['low'] for d in recent_data]
         
-        # 移除已处理信号
-        for signal_id in confirmed_signals:
-            del self.pending_signals[signal_id]
-
-    def _is_signal_confirmed_with_trend(self, signal: PinbarSignal, 
-                                      current_candle: Dict, quick_confirm: bool = False) -> bool:
-        """信号确认 - 考虑趋势因素"""
+        highest = max(highs)
+        lowest = min(lows)
+        range_pct = (highest - lowest) / lowest
         
-        if quick_confirm:
-            # 强趋势中的快速确认
-            if signal.direction == 'buy':
-                return current_candle['close'] >= signal.close_price * 0.999  # 几乎不下跌即确认
-            else:
-                return current_candle['close'] <= signal.close_price * 1.001  # 几乎不上涨即确认
-        else:
-            # 常规确认
-            if signal.direction == 'buy':
-                return current_candle['close'] > signal.low_price
-            else:
-                return current_candle['close'] < signal.high_price
-
-    def _execute_confirmed_signal(self, signal: PinbarSignal, signal_id: str, 
-                                signal_trend_info: Optional[TrendInfo] = None):
-        """执行确认信号 - 修复版本"""
-        print(f"📊 执行确认信号: {signal.type} {signal.direction}")
+        # 如果20根K线的波动范围小于2%，认为是盘整
+        is_consolidating = range_pct < self.consolidation_range_pct
         
-        # 1. 预先检查保证金充足性
-        margin_check_result = self._pre_check_margin_requirement(signal, signal_trend_info)
+        if is_consolidating:
+            print(f"    盘整检测: 20根K线波动{range_pct*100:.2f}% < {self.consolidation_range_pct*100:.1f}%")
         
-        if not margin_check_result['sufficient']:
-            # 记录保证金不足的信号
-            self._record_insufficient_margin_signal(signal_id, signal, margin_check_result)
-            print(f"❌ 信号 {signal_id} 保证金不足，跳过开仓")
-            return
-            
+        return is_consolidating
+    
+    def _get_direction_bias(self, current_price: float) -> Optional[str]:
+        """获取方向偏好基于历史失败记录"""
+        if not self.recent_failures:
+            return None
+        
+        # 检查最近的失败记录
+        recent_failures_near_price = []
+        for failure in self.recent_failures:
+            price_diff = abs(failure['price'] - current_price) / current_price
+            if price_diff < 0.01:  # 1%价格范围内
+                bars_ago = len(self.data_cache) - failure['bar_index']
+                if bars_ago <= self.memory_decay_bars:  # 在记忆周期内
+                    recent_failures_near_price.append(failure)
+        
+        if not recent_failures_near_price:
+            return None
+        
+        # 统计失败方向
+        failed_directions = [f['direction'] for f in recent_failures_near_price]
+        buy_failures = failed_directions.count('buy')
+        sell_failures = failed_directions.count('sell')
+        
+        # 如果某个方向失败次数明显更多，建议相反方向
+        if buy_failures > sell_failures + 1:
+            print(f"    方向记忆: 该价位买单失败{buy_failures}次，建议做空")
+            return 'sell'
+        elif sell_failures > buy_failures + 1:
+            print(f"    方向记忆: 该价位卖单失败{sell_failures}次，建议做多")
+            return 'buy'
+        
+        return None
+    
+    def _check_trend_alignment(self, signal_direction: str) -> bool:
+        """检查趋势对齐"""
+        if not self.current_trend_info:
+            return True  # 无趋势信息时允许
+        
+        # 强趋势中只允许同向信号
+        if self.current_trend_info.strength.value >= 3:
+            if (self.current_trend_info.direction == TrendDirection.UP and signal_direction == 'sell') or \
+               (self.current_trend_info.direction == TrendDirection.DOWN and signal_direction == 'buy'):
+                return False
+        
+        return True
+    
+    def _check_volume_confirmation(self) -> bool:
+        """检查成交量确认"""
+        if len(self.data_cache) < 15:
+            return True
+        
+        recent_volumes = [d['volume'] for d in self.data_cache[-15:]]
+        current_volume = self.data_cache[-1]['volume']
+        avg_volume = np.mean(recent_volumes[:-1])
+        
+        volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
+        return volume_ratio >= 1.1
+    
+    def _check_margin_sufficient(self, signal: PinbarSignal) -> bool:
+        """检查保证金是否充足"""
+        current_position_count = len(self.active_trades)
+        expected_leverage = self.leverage_by_positions.get(current_position_count + 1, 2)
+        
+        try:
+            required_margin = self._estimate_required_margin(signal, expected_leverage)
+            available_margin = self.broker.getcash() * (1 - self.margin_buffer_ratio)
+            return required_margin <= available_margin
+        except:
+    def _estimate_required_margin(self, signal: PinbarSignal, leverage: float) -> float:
+        """估算所需保证金"""
         current_price = self.data.close[0]
-        direction = signal.direction
+        risk_amount = self.broker.getcash() * self.max_single_risk
+        stop_distance = abs(current_price - signal.stop_loss)
         
-        # ✅ 正确计算滑点后的入场价格
-        if direction == 'buy':
-            actual_entry_price = current_price * (1 + self.slippage_rate)
-            print(f"   买入滑点: {current_price:.4f} -> {actual_entry_price:.4f} (+{self.slippage_rate*100:.3f}%)")
-        else:
-            actual_entry_price = current_price * (1 - self.slippage_rate)
-            print(f"   卖出滑点: {current_price:.4f} -> {actual_entry_price:.4f} (-{self.slippage_rate*100:.3f}%)")
+        if stop_distance <= 0:
+            return float('inf')
         
-        # 根据趋势调整杠杆
-        leverage = self._calculate_trend_aware_leverage(signal, signal_trend_info)
+        position_value = risk_amount / (stop_distance / current_price)
+        required_margin = position_value / leverage
         
-        # 计算仓位大小
-        position_size = self._calculate_position_size(actual_entry_price, signal.stop_loss, leverage)
+        return required_margin
+        """估算所需保证金"""
+        current_price = self.data.close[0]
+        risk_amount = self.broker.getcash() * self.max_single_risk
+        stop_distance = abs(current_price - signal.stop_loss)
+        
+        if stop_distance <= 0:
+            return float('inf')
+        
+        position_value = risk_amount / (stop_distance / current_price)
+        required_margin = position_value / leverage
+        
+        return required_margin
+
+    def _execute_big_move_signal(self, signal: PinbarSignal):
+        """执行大行情信号"""
+        print(f"📊 执行大行情信号: {signal.type} {signal.direction}")
+        
+        # 1. 计算杠杆
+        current_position_count = len(self.active_trades)
+        base_leverage = self.leverage_by_positions.get(current_position_count + 1, 2)
+        
+        # 根据信号质量调整杠杆
+        leverage_multiplier = 1.0
+        if signal.confidence_score >= 0.85:  # 极高质量信号
+            leverage_multiplier = 1.2
+        elif signal.confidence_score >= 0.80:  # 高质量信号
+            leverage_multiplier = 1.1
+        
+        final_leverage = min(self.max_leverage, int(base_leverage * leverage_multiplier))
+        
+        # 2. 计算仓位大小
+        current_price = self.data.close[0]
+        position_size = self._calculate_big_move_position_size(current_price, signal.stop_loss, final_leverage)
         
         if position_size <= 0:
             print(f"❌ 仓位计算失败")
             return
-            
-        # ✅ 详细的成本计算
-        position_value = position_size * actual_entry_price  # 仓位价值
-        required_margin = position_value / leverage           # 所需保证金
         
-        # 开仓手续费计算（使用Taker费率，因为市价单）
-        entry_commission = position_value * self.taker_fee_rate
+        # 3. 计算实际入场价格（滑点处理）
+        direction = signal.direction
+        if direction == 'buy':
+            actual_entry_price = current_price * (1 + self.slippage_rate)
+        else:
+            actual_entry_price = current_price * (1 - self.slippage_rate)
         
-        # 滑点成本
-        entry_slippage_cost = abs(actual_entry_price - current_price) * position_size
-        
-        print(f"💰 成本详情:")
-        print(f"   仓位大小: {position_size:.6f}")
-        print(f"   仓位价值: {position_value:.2f} USDT")
-        print(f"   杠杆倍数: {leverage}x")
-        print(f"   所需保证金: {required_margin:.2f} USDT")
-        print(f"   开仓手续费: {entry_commission:.2f} USDT ({self.taker_fee_rate*100:.3f}%)")
-        print(f"   开仓滑点成本: {entry_slippage_cost:.2f} USDT")
-        
-        # 检查保证金充足性
-        available_margin = self.broker.getcash() * 0.9  # 留10%缓冲
-        if required_margin > available_margin:
-            print(f"❌ 保证金不足: 需要{required_margin:.2f}, 可用{available_margin:.2f}")
+        # 4. 重新精确计算仓位
+        position_size = self._calculate_big_move_position_size(actual_entry_price, signal.stop_loss, final_leverage)
+        if position_size <= 0:
+            print(f"❌ 最终仓位计算失败")
             return
-            
-        # 执行开仓
+        
+        # 5. 计算成本和保证金
+        position_value = position_size * actual_entry_price
+        required_margin = position_value / final_leverage
+        total_cost = position_value * self.unified_cost_rate
+        
+        # 6. 最终保证金安全检查
+        current_margin_usage = self._calculate_margin_usage()
+        new_margin_usage = (self._get_total_used_margin() + required_margin) / self.broker.getvalue()
+        
+        if new_margin_usage > self.max_total_margin:
+            print(f"❌ 保证金超限: {new_margin_usage*100:.1f}% > {self.max_total_margin*100:.0f}%")
+            return
+        
+        print(f"💰 大行情交易详情:")
+        print(f"   仓位大小: {position_size:.6f}")
+        print(f"   入场价格: {actual_entry_price:.4f}")
+        print(f"   杠杆倍数: {final_leverage}x")
+        print(f"   仓位价值: {position_value:.2f} USDT")
+        print(f"   所需保证金: {required_margin:.2f} USDT")
+        print(f"   保证金占用: {new_margin_usage*100:.1f}%")
+        
+        # 8. 记录大行情交易（加入持仓控制）
         try:
             if direction == 'buy':
                 order = self.buy(size=position_size)
@@ -635,433 +855,320 @@ class EnhancedPinbarStrategy(bt.Strategy):
             if order is None:
                 print(f"❌ 订单执行失败")
                 return
-            # ✅ 新增：统计已执行信号
+            
+            # 8. 记录大行情交易（加入智能持仓控制）
             self.signal_stats['executed_signals'] += 1
-            # 记录交易信息（包含趋势信息）
-            self._record_new_trade_with_trend(
-                order, signal, actual_entry_price, position_size, 
-                leverage, entry_commission, required_margin,
-                entry_slippage_cost, signal_trend_info
-            )
+            self._record_smart_trade(order, signal, actual_entry_price, position_size, 
+                                   final_leverage, total_cost, required_margin)
             
         except Exception as e:
             print(f"❌ 执行开仓失败: {e}")
-    
-    def _pre_check_margin_requirement(self, signal: PinbarSignal, 
-                                trend_info: Optional[TrendInfo] = None) -> Dict:
-        """预检查保证金需求"""
-        current_cash = self.broker.getcash()
-        current_price = self.data.close[0]
-        
-        # 计算预期杠杆
-        expected_leverage = self._calculate_trend_aware_leverage(signal, trend_info)
-        
-        # 计算预期仓位大小
-        expected_position_size = self._calculate_position_size(
-            current_price, signal.stop_loss, expected_leverage
-        )
-        
-        if expected_position_size <= 0:
-            return {
-                'sufficient': False,
-                'reason': '仓位计算失败',
-                'required_margin': 0,
-                'available_cash': current_cash
-            }
-        
-        # 计算所需保证金
-        position_value = expected_position_size * current_price
-        required_margin = position_value / expected_leverage
-        
-        # 检查是否充足（留10%缓冲）
-        available_for_margin = current_cash * 0.9
-        sufficient = required_margin <= available_for_margin
-        
-        return {
-            'sufficient': sufficient,
-            'reason': '保证金充足' if sufficient else '保证金不足',
-            'required_margin': required_margin,
-            'available_cash': current_cash,
-            'expected_leverage': expected_leverage,
-            'expected_position_size': expected_position_size
-        }
-        
-    def _record_insufficient_margin_signal(self, signal_id: str, signal: PinbarSignal, 
-                                     margin_info: Dict):
-        """记录保证金不足的信号信息"""
-        insufficient_signal = {
-            'signal_id': signal_id,
-            'timestamp': self.data.datetime.datetime(),
-            'symbol': self.trading_params.symbol if hasattr(self.trading_params, 'symbol') else 'unknown',
-            'direction': signal.direction,
-            'entry_price': signal.close_price,
-            'signal_strength': signal.signal_strength,
-            'confidence_score': signal.confidence_score,
-            'required_margin': margin_info['required_margin'],
-            'available_cash': margin_info['available_cash'],
-            'margin_shortage': margin_info['required_margin'] - margin_info['available_cash'],
-            'reason': margin_info['reason']
-        }
-        
-        # 添加到专门的列表中
-        if not hasattr(self, 'insufficient_margin_signals'):
-            self.insufficient_margin_signals = []
-        
-        self.insufficient_margin_signals.append(insufficient_signal)
-        
-        print(f"📝 记录保证金不足信号: {signal_id}")
-        print(f"    所需保证金: {margin_info['required_margin']:.2f} USDT")
-        print(f"    可用现金: {margin_info['available_cash']:.2f} USDT")
-        print(f"    缺口: {insufficient_signal['margin_shortage']:.2f} USDT")
 
-    def _calculate_trend_aware_leverage(self, signal: PinbarSignal, 
-                                      trend_info: Optional[TrendInfo] = None) -> float:
-        """根据趋势调整杠杆"""
-        base_leverage = self.trading_params.leverage
-        
-        if not self.use_dynamic_leverage or not trend_info:
-            return base_leverage
-        
-        try:
-            # 基础质量因子
-            quality_factor = signal.confidence_score * (signal.signal_strength / 5.0)
-            
-            # 趋势因子
-            trend_factor = 1.0
-            if trend_info.strength.value >= 3:  # 强趋势
-                trend_factor = 1.3
-            if trend_info.strength.value >= 4:  # 极强趋势
-                trend_factor = 1.5
-            
-            # 趋势一致性因子
-            trend_aligned = (
-                (trend_info.direction == TrendDirection.UP and signal.direction == 'buy') or
-                (trend_info.direction == TrendDirection.DOWN and signal.direction == 'sell')
-            )
-            alignment_factor = 1.2 if trend_aligned else 0.8
-            
-            # 置信度因子
-            confidence_factor = 0.5 + trend_info.confidence
-            
-            adjusted_leverage = (base_leverage * quality_factor * 
-                               trend_factor * alignment_factor * confidence_factor)
-            
-            return max(1, min(base_leverage * 1.5, int(adjusted_leverage)))
-            
-        except Exception as e:
-            print(f"❌ 趋势感知杠杆计算失败: {e}")
-            return base_leverage
-
-    def _calculate_position_size(self, entry_price: float, stop_loss: float, leverage: float) -> float:
-        """计算仓位大小 - 优化版"""
+    def _calculate_big_move_position_size(self, entry_price: float, stop_loss: float, leverage: float) -> float:
+        """计算大行情仓位大小"""
         current_cash = self.broker.getcash()
         
-        # 基于风险的仓位计算
-        risk_amount = current_cash * self.trading_params.risk_per_trade
+        # 基于风险的仓位计算（小仓位策略）
+        risk_amount = current_cash * self.max_single_risk
         stop_distance = abs(entry_price - stop_loss)
         
         if stop_distance <= 0:
             return 0
-        # 最大仓位基于风险
-        max_position_value_by_risk = risk_amount / (stop_distance / entry_price)
         
-        # 基于保证金限制
-        # ✅ 修复保证金限制计算
-        # 使用更保守的可用资金计算
-        available_cash = current_cash * 0.8  # 保留20%缓冲
-        max_margin_amount = available_cash * (self.max_margin_per_trade_pct / 100)
-        max_position_value_by_margin = max_margin_amount * leverage
-        print(f"   风险额度: {risk_amount:.2f} USDT")
-        print(f"   止损距离: {stop_distance:.4f} ({stop_distance/entry_price*100:.2f}%)")
-        print(f"   基于风险最大仓位: {max_position_value_by_risk:.2f} USDT")
-        print(f"   可用现金: {available_cash:.2f} USDT")
-        print(f"   最大保证金额度: {max_margin_amount:.2f} USDT ({self.max_margin_per_trade_pct}%)")
-        print(f"   基于保证金最大仓位: {max_position_value_by_margin:.2f} USDT")
-        # 取较小值
-        max_position_value = min(max_position_value_by_risk, max_position_value_by_margin)
+        # 基于风险的仓位价值
+        position_value_by_risk = risk_amount / (stop_distance / entry_price)
+        
+        # 基于保证金限制的仓位价值
+        available_cash = current_cash * (1 - self.margin_buffer_ratio)
+        max_margin_for_position = available_cash * (self.max_single_margin / (self.max_positions / len(self.active_trades) if self.active_trades else 1))
+        position_value_by_margin = max_margin_for_position * leverage
+        
+        # 取较小值，确保风险可控
+        max_position_value = min(position_value_by_risk, position_value_by_margin)
         position_size = max_position_value / entry_price
         
         # 最小仓位检查
-        min_position_value = 10
+        min_position_value = 100  # 最小100USDT
         if position_size * entry_price < min_position_value:
             position_size = min_position_value / entry_price
         
-        # 保证金充足性检查
-        final_position_value = position_size * entry_price
-        required_margin = final_position_value / leverage
-        if required_margin > available_cash:
-            print(f"❌ 保证金不足: 需要{required_margin:.2f}, 可用{available_cash:.2f}")
-
-            return 0
-        print(f"   最终仓位大小: {position_size:.6f}")
-        print(f"   最终仓位价值: {final_position_value:.2f} USDT")
-        print(f"   所需保证金: {required_margin:.2f} USDT")
-        print(f"   保证金占用: {required_margin/current_cash*100:.2f}%")
         return position_size
 
-    def _record_new_trade_with_trend(self, order, signal: PinbarSignal, actual_entry_price: float, 
-                               position_size: float, leverage: float, entry_commission: float,
-                               required_margin: float, entry_slippage_cost: float,
-                               trend_info: Optional[TrendInfo] = None):
-        """记录新交易 - 修复版本包含完整成本信息"""
+    def _get_total_used_margin(self) -> float:
+        """获取当前已使用保证金总额"""
+        if not self.active_trades:
+            return 0.0
+        return sum(trade['required_margin'] for trade in self.active_trades.values())
+
+    def _record_smart_trade(self, order, signal: PinbarSignal, actual_entry_price: float, 
+                          position_size: float, leverage: float, total_cost: float,
+                          required_margin: float):
+        """记录智能交易（加入持仓控制）"""
         self.trade_counter += 1
-        trade_id = f"T{self.trade_counter:04d}"
+        trade_id = f"SM{self.trade_counter:04d}"  # SM = Smart Move
         
         position_value = position_size * actual_entry_price
-        # ✅ 修复保证金计算 - 确保数据正确性
-        current_account_value = self.broker.getvalue()  # 使用总资产而不是现金
-        current_cash = self.broker.getcash()
-        # 重新验证保证金计算
-        calculated_margin = position_value / leverage   
-
-        # margin_ratio = (required_margin / self.broker.getcash()) * 100
-
-        # 保证金占用比例应该基于账户总价值，而不是现金
-        # 因为现金会因为开仓而减少，但总资产价值更稳定
-        margin_ratio_by_value = (calculated_margin / current_account_value) * 100
-        margin_ratio_by_cash = (calculated_margin / current_cash) * 100 if current_cash > 0 else 0
-    
-        # 使用账户总价值计算更合理的保证金占用比例
-        margin_ratio = margin_ratio_by_value
-        # 调试信息
-        print(f"🔍 保证金计算调试:")
-        print(f"   仓位价值: {position_value:.2f} USDT")
-        print(f"   杠杆: {leverage}x")
-        print(f"   计算保证金: {calculated_margin:.2f} USDT")
-        print(f"   传入保证金: {required_margin:.2f} USDT")
-        print(f"   当前现金: {current_cash:.2f} USDT")
-        print(f"   当前资产: {current_account_value:.2f} USDT")
-        print(f"   保证金占比(现金): {margin_ratio_by_cash:.2f}%")
-        print(f"   保证金占比(资产): {margin_ratio_by_value:.2f}%")
-
-        # 确保保证金数据一致性
-        if abs(calculated_margin - required_margin) > 0.01:
-            print(f"⚠️ 保证金计算不一致，使用重新计算值")
-            required_margin = calculated_margin
+        current_account_value = self.broker.getvalue()
+        margin_ratio = (required_margin / current_account_value) * 100
         
-        # 确保保证金为正数
-        if required_margin < 0:
-            print(f"❌ 保证金为负数: {required_margin:.2f}，设为0")
-            required_margin = 0
-            margin_ratio = 0
-
-        # 计算预估资金费用（基于持仓时间估算）
-        estimated_holding_hours = 24  # 假设平均持仓24小时
-        estimated_funding_periods = estimated_holding_hours / self.funding_interval_hours
-        estimated_funding_cost = position_value * self.funding_rate * estimated_funding_periods
-        
-        # 根据趋势动态调整止盈目标
-        if trend_info and self.enable_dynamic_targets:
-            dynamic_tp1 = self.trend_tracker.calculate_dynamic_profit_target(
-                trend_info, actual_entry_price, signal.direction
-            )
-        else:
-            dynamic_tp1 = signal.take_profit_1
-        
-        # 安全获取趋势信息 - 修复版本
-        if trend_info:
-            try:
-                trend_direction = trend_info.direction.value if hasattr(trend_info.direction, 'value') else str(trend_info.direction)
-                trend_strength = trend_info.strength.value if hasattr(trend_info.strength, 'value') else str(trend_info.strength)
-                trend_confidence = trend_info.confidence if hasattr(trend_info, 'confidence') else 0.0
-            except Exception as e:
-                print(f"⚠️ 趋势信息获取失败: {e}")
-                trend_direction = 'unknown'
-                trend_strength = 'unknown'
-                trend_confidence = 0.0
-        else:
-            trend_direction = 'unknown'
-            trend_strength = 'unknown'
-            trend_confidence = 0.0
+        # 计算动态持仓时间
+        min_bars = self._calculate_dynamic_min_holding(signal)
         
         self.active_trades[trade_id] = {
             'order': order,
             'direction': signal.direction,
-            'entry_price': self.data.close[0],
-            'actual_entry_price': actual_entry_price,
+            'entry_price': actual_entry_price,
             'entry_time': self.data.datetime.datetime(),
+            'entry_bar_index': len(self.data_cache),
             'size': position_size,
             'original_size': position_size,
             'stop_loss': signal.stop_loss,
-            'take_profit_1': dynamic_tp1,
-            'take_profit_2': signal.take_profit_2,
-            'take_profit_3': signal.take_profit_3,
             'leverage': leverage,
-            'signal_info': signal,
-            'trend_info': trend_info,
-            
-            # ✅ 完整的成本和保证金信息
             'position_value': position_value,
             'required_margin': required_margin,
             'margin_ratio': margin_ratio,
-            'entry_commission': entry_commission,
-            'margin_ratio_by_cash': margin_ratio_by_cash,
-            'margin_ratio_by_value': margin_ratio_by_value,
-            'account_value_at_entry': current_account_value,
-            'cash_at_entry': current_cash,
-            'entry_commission': entry_commission,
-            'entry_slippage_cost': entry_slippage_cost,
-            'estimated_funding_cost': estimated_funding_cost,
-            'actual_funding_cost': 0.0,  # 实际资金费用（平仓时计算）
-            'total_commission': entry_commission,  # 总手续费（平仓时累加）
-            'total_slippage_cost': entry_slippage_cost,  # 总滑点成本（平仓时累加）
-            
-            # 交易状态
-            'trailing_stop': signal.stop_loss,
-            'trailing_activated': False,
-            'highest_price': actual_entry_price if signal.direction == 'buy' else 0,
-            'lowest_price': actual_entry_price if signal.direction == 'sell' else float('inf'),
-            
-            # 信号和趋势信息
-            'signal_type': signal.type,
+            'total_cost': total_cost,
             'signal_strength': signal.signal_strength,
             'confidence_score': signal.confidence_score,
-            'trend_alignment': signal.trend_alignment,
-            'entry_reason': signal.entry_reason,
-            'trend_direction': trend_direction,
-            'trend_strength': trend_strength,
-            'trend_confidence': trend_confidence,
             
-            # 趋势跟踪状态
-            'partial_close_count': 0,
-            'break_even_moved': False,
-            'trend_tracking_active': trend_info is not None and hasattr(trend_info, 'is_strong_trend'),
-            'last_profit_check': 0,
-            'max_profit_seen': 0,
-            'profit_lock_active': False
+            # 智能持仓控制
+            'min_holding_bars': min_bars,
+            'max_holding_bars': self.max_holding_bars,
+            'consolidation_check_bar': self.consolidation_exit_bars,
+            'bars_held': 0,
+            'highest_price_seen': actual_entry_price if signal.direction == 'buy' else 0,
+            'lowest_price_seen': actual_entry_price if signal.direction == 'sell' else float('inf'),
+            'breakout_detected': False,
+            
+            # 大行情特有属性
+            'is_big_move_trade': True,
+            'partial_closed': False,
+            'profit_protection_active': False,
+            'trailing_stop_active': False,
+            'max_profit_seen': 0.0,
+            'big_move_stage': 0,
+            
+            # 防止过早出场
+            'early_exit_protection': True,
+            'can_stop_loss': False  # 初始不能止损
         }
         
-        print(f"✅ 成功开仓 {trade_id}: {signal.direction} @ {actual_entry_price:.4f}")
+        print(f"✅ 智能开仓 {trade_id}: {signal.direction} @ {actual_entry_price:.4f}")
+        print(f"   最少持仓: {min_bars}根K线")
+        print(f"   止损: {signal.stop_loss:.4f}")
         print(f"   杠杆: {leverage}x | 保证金: {required_margin:.2f} USDT ({margin_ratio:.1f}%)")
-        print(f"   手续费: {entry_commission:.2f} USDT | 滑点成本: {entry_slippage_cost:.2f} USDT")
-        print(f"   动态止盈: {dynamic_tp1:.4f} | 趋势跟踪: {self.active_trades[trade_id]['trend_tracking_active']}")
+    
+    def _calculate_dynamic_min_holding(self, signal: PinbarSignal) -> int:
+        """根据信号质量和市场环境计算最少持仓时间"""
+        base_bars = self.min_holding_bars
+        
+        # 根据信号强度调整
+        if signal.signal_strength >= 4.0:
+            base_bars += 2  # 强信号多持仓2根K线
+        elif signal.signal_strength >= 3.5:
+            base_bars += 1
+        
+        # 根据波动率调整
+        if len(self.data_cache) >= 20:
+            recent_data = self.data_cache[-20:]
+            volatility = self._calculate_recent_volatility(recent_data)
+            if volatility > 0.03:  # 高波动率
+                base_bars += 1
+            elif volatility < 0.01:  # 低波动率
+                base_bars += 2  # 低波动需要更多时间
+        
+        return min(base_bars, 8)  # 最多8根K线
+    
+    def _calculate_recent_volatility(self, data_list: List[Dict]) -> float:
+        """计算最近的波动率"""
+        if len(data_list) < 2:
+            return 0.02
+        
+        prices = [d['close'] for d in data_list]
+        returns = []
+        for i in range(1, len(prices)):
+            ret = (prices[i] - prices[i-1]) / prices[i-1]
+            returns.append(ret)
+        
+        return np.std(returns) if returns else 0.02
 
-    def _manage_active_trades_with_trend(self):
-        """管理现有持仓 - 趋势感知版"""
+    def _manage_big_move_positions(self):
+        """管理智能持仓"""
         current_price = self.data.close[0]
+        current_high = self.data.high[0]
+        current_low = self.data.low[0]
         trades_to_close = []
         
         for trade_id, trade_info in self.active_trades.items():
             
-            # 1. 更新最高/最低价格
-            self._update_trade_extremes(trade_info, current_price)
+            # 更新持仓统计
+            trade_info['bars_held'] = len(self.data_cache) - trade_info['entry_bar_index']
             
-            # 2. 计算当前利润
+            # 更新价格追踪
+            if trade_info['direction'] == 'buy':
+                trade_info['highest_price_seen'] = max(trade_info['highest_price_seen'], current_high)
+            else:
+                trade_info['lowest_price_seen'] = min(trade_info['lowest_price_seen'], current_low)
+            
+            # 1. 计算当前利润
             current_profit_pct = self._calculate_current_profit_pct(trade_info, current_price)
-            trade_info['last_profit_check'] = current_profit_pct
             trade_info['max_profit_seen'] = max(trade_info['max_profit_seen'], current_profit_pct)
             
-            # 3. 趋势感知的持仓管理
-            if trade_info['trend_tracking_active']:
-                self._manage_trend_following_position(trade_info, current_price, trade_id)
-            
-            # 4. 智能部分平仓
-            if self.smart_partial_close and not trade_info.get('all_closed', False):
-                self._smart_partial_close_management(trade_info, current_price, current_profit_pct)
-            
-            # 5. 检查止损
-            if self._check_stop_loss(trade_info, current_price):
-                trades_to_close.append((trade_id, "止损"))
+            # 2. 智能持仓控制
+            should_close, reason = self._should_close_position(trade_info, current_price, current_profit_pct)
+            if should_close:
+                trades_to_close.append((trade_id, reason))
                 continue
             
-            # 6. 检查常规止盈
-            exit_reason = self._check_take_profit_with_trend(trade_info, current_price)
-            if exit_reason:
-                trades_to_close.append((trade_id, exit_reason))
+            # 3. 解除早期保护
+            if (trade_info.get('early_exit_protection', False) and 
+                trade_info['bars_held'] >= trade_info['min_holding_bars']):
+                trade_info['early_exit_protection'] = False
+                trade_info['can_stop_loss'] = True
+                print(f"🔓 {trade_id} 解除早期保护，持仓{trade_info['bars_held']}根K线")
+            
+            # 4. 检查基础止损（只有在解除保护后）
+            if (trade_info.get('can_stop_loss', False) and 
+                self._check_stop_loss_smart(trade_info, current_high, current_low)):
+                trades_to_close.append((trade_id, "智能止损"))
+                continue
+            
+            # 5. 大行情利润管理
+            if trade_info.get('is_big_move_trade', False):
+                self._manage_big_move_profit(trade_info, current_price, current_profit_pct, trade_id)
         
         # 执行平仓
         for trade_id, reason in trades_to_close:
-            self._close_position(trade_id, reason)
-
-    def _manage_trend_following_position(self, trade_info: Dict, current_price: float, trade_id: str):
-        """趋势跟踪持仓管理"""
-        trend_info = trade_info.get('trend_info')
-        if not trend_info:
-            return
-        
+            self._close_position_smart(trade_id, reason)
+    
+    def _should_close_position(self, trade_info: Dict, current_price: float, current_profit_pct: float) -> Tuple[bool, str]:
+        """智能判断是否应该平仓"""
+        bars_held = trade_info['bars_held']
         direction = trade_info['direction']
-        current_profit_pct = trade_info['last_profit_check']
+        entry_price = trade_info['entry_price']
         
-        # 更新当前趋势状态
-        current_trend = self.current_trend_info
+        # 1. 最大持仓时间限制
+        if bars_held >= trade_info['max_holding_bars']:
+            return True, f"最大持仓时间({bars_held}根K线)"
         
-        # 检查趋势是否仍然强劲
-        if current_trend and hasattr(current_trend, 'should_hold_position'):
-            # 趋势延续，检查是否应该延长止盈
-            should_extend = self.trend_tracker.should_extend_profit_target(
-                current_trend, current_profit_pct
-            )
-            
-            if should_extend and current_profit_pct >= self.min_trend_profit_pct:
-                # 延长止盈目标
-                new_target = self.trend_tracker.calculate_dynamic_profit_target(
-                    current_trend, trade_info['actual_entry_price'], direction
-                )
-                
-                # 只在新目标更好时更新
-                if direction == 'buy' and new_target > trade_info['take_profit_1']:
-                    trade_info['take_profit_1'] = new_target
-                    print(f"📈 {trade_id} 趋势延续，调整止盈到: {new_target:.4f}")
-                elif direction == 'sell' and new_target < trade_info['take_profit_1']:
-                    trade_info['take_profit_1'] = new_target
-                    print(f"📉 {trade_id} 趋势延续，调整止盈到: {new_target:.4f}")
-            
-            # 动态追踪止损
-            if current_profit_pct >= self.profit_lock_threshold:
-                self._update_trend_trailing_stop(trade_info, current_price, current_trend)
+        # 2. 盘整环境检查（持仓一段时间后）
+        if bars_held >= trade_info['consolidation_check_bar']:
+            if self._is_position_in_consolidation(trade_info, current_price):
+                return True, f"盘整环境退出(持仓{bars_held}根K线)"
         
-        else:
-            # 趋势弱化，准备退出
-            if current_profit_pct >= self.min_trend_profit_pct:
-                print(f"📉 {trade_id} 趋势弱化，触发退出机制")
-                trade_info['trend_tracking_active'] = False
-                # 收紧止盈目标
-                self._tighten_profit_target(trade_info, current_price)
-
-    def _update_trend_trailing_stop(self, trade_info: Dict, current_price: float, 
-                                  trend_info: TrendInfo):
-        """更新趋势追踪止损"""
+        # 3. 突破检查（只有在最小持仓时间后）
+        if bars_held >= trade_info['min_holding_bars']:
+            breakout_detected = self._detect_breakout_from_entry(trade_info, current_price)
+            if breakout_detected:
+                trade_info['breakout_detected'] = True
+                print(f"🚀 {direction} 突破检测成功，继续持仓")
+            elif bars_held >= 8 and not trade_info.get('breakout_detected', False):
+                # 8根K线后还没突破，考虑退出
+                if current_profit_pct < 2:  # 且利润不足2%
+                    return True, f"未突破盘整(持仓{bars_held}根K线，利润{current_profit_pct:.1f}%)"
+        
+        # 4. 极端亏损保护
+        if current_profit_pct < -10:  # 亏损超过10%
+            return True, f"极端亏损保护({current_profit_pct:.1f}%)"
+        
+        return False, ""
+    
+    def _is_position_in_consolidation(self, trade_info: Dict, current_price: float) -> bool:
+        """检查持仓期间是否陷入盘整"""
+        entry_price = trade_info['entry_price']
         direction = trade_info['direction']
         
-        # 获取动态止损距离
-        stop_distance_pct = self.trend_tracker.get_trailing_stop_distance(trend_info)
+        # 检查价格是否在入场价附近震荡
+        price_range_pct = abs(current_price - entry_price) / entry_price
         
         if direction == 'buy':
-            new_stop = current_price * (1 - stop_distance_pct / 100)
-            if new_stop > trade_info['trailing_stop']:
-                trade_info['trailing_stop'] = new_stop
-                trade_info['stop_loss'] = new_stop
-                print(f"🔺 更新追踪止损(买): {new_stop:.4f} (距离{stop_distance_pct:.1f}%)")
+            # 做多：价格应该向上，如果一直在入场价下方震荡就是盘整
+            highest = trade_info['highest_price_seen']
+            move_from_entry = (highest - entry_price) / entry_price
+            current_from_high = (highest - current_price) / highest
+            
+            # 如果突破不足1%，且从高点回撤超过50%，认为是盘整
+            if move_from_entry < 0.01 and current_from_high > 0.5:
+                return True
+                
         else:
-            new_stop = current_price * (1 + stop_distance_pct / 100)
-            if new_stop < trade_info['trailing_stop']:
-                trade_info['trailing_stop'] = new_stop
-                trade_info['stop_loss'] = new_stop
-                print(f"🔻 更新追踪止损(卖): {new_stop:.4f} (距离{stop_distance_pct:.1f}%)")
+            # 做空：价格应该向下
+            lowest = trade_info['lowest_price_seen']
+            move_from_entry = (entry_price - lowest) / entry_price
+            current_from_low = (current_price - lowest) / lowest
+            
+            if move_from_entry < 0.01 and current_from_low > 0.5:
+                return True
+        
+        return False
+    
+    def _detect_breakout_from_entry(self, trade_info: Dict, current_price: float) -> bool:
+        """检测是否从入场价突破"""
+        entry_price = trade_info['entry_price']
+        direction = trade_info['direction']
+        
+        if direction == 'buy':
+            breakout_price = entry_price * (1 + self.breakout_threshold)
+            return current_price >= breakout_price
+        else:
+            breakout_price = entry_price * (1 - self.breakout_threshold)
+            return current_price <= breakout_price
+    
+    def _check_stop_loss_smart(self, trade_info: Dict, current_high: float, current_low: float) -> bool:
+        """智能止损检查"""
+        direction = trade_info['direction']
+        stop_loss = trade_info['stop_loss']
+        
+        if direction == 'buy' and current_low <= stop_loss:
+            print(f"🔴 智能止损触发(买): 最低价{current_low:.4f} <= 止损{stop_loss:.4f}")
+            return True
+        elif direction == 'sell' and current_high >= stop_loss:
+            print(f"🔴 智能止损触发(卖): 最高价{current_high:.4f} >= 止损{stop_loss:.4f}")
+            return True
+        
+        return False
 
-    def _smart_partial_close_management(self, trade_info: Dict, current_price: float, 
-                                      current_profit_pct: float):
-        """智能部分平仓管理"""
-        partial_count = trade_info['partial_close_count']
+    def _manage_big_move_profit(self, trade_info: Dict, current_price: float, 
+                              current_profit_pct: float, trade_id: str):
+        """大行情利润管理"""
+        current_stage = trade_info['big_move_stage']
         
-        # 第一次部分平仓：达到2%利润
-        if partial_count == 0 and current_profit_pct >= 2.0:
-            self._execute_partial_close(trade_info, self.first_partial_ratio, "首次获利")
-            trade_info['partial_close_count'] = 1
+        # 阶段1: 5%利润 - 部分平仓+启动保护
+        if current_profit_pct >= 5 and current_stage == 0:
+            print(f"📈 {trade_id} 达到5%利润，执行部分平仓")
+            self._execute_partial_close(trade_info, self.partial_close_ratio, "利润保护")
+            
+            # 移动止损到成本价+1%
+            self._move_stop_to_breakeven_plus(trade_info, 0.01)
+            
+            trade_info['big_move_stage'] = 1
+            trade_info['partial_closed'] = True
+            trade_info['profit_protection_active'] = True
         
-        # 第二次部分平仓：达到5%利润
-        elif partial_count == 1 and current_profit_pct >= 5.0:
-            self._execute_partial_close(trade_info, self.second_partial_ratio, "二次获利")
-            trade_info['partial_close_count'] = 2
+        # 阶段2: 10%利润 - 启动宽松追踪
+        elif current_profit_pct >= 10 and current_stage == 1:
+            print(f"📈 {trade_id} 达到10%利润，启动宽松追踪止损")
+            self._update_big_move_trailing_stop(trade_info, current_price, 0.05)  # 5%追踪距离
+            trade_info['big_move_stage'] = 2
+            trade_info['trailing_stop_active'] = True
         
-        # 如果趋势很强，保留最后30%追更大利润
-        elif partial_count == 2 and current_profit_pct >= 10.0:
-            trend_info = trade_info.get('trend_info')
-            if not (trend_info and hasattr(trend_info, 'strength') and trend_info.strength.value >= 4):
-                # 趋势不够强时，平掉剩余仓位
-                remaining_ratio = trade_info['size'] / trade_info['original_size']
-                self._execute_partial_close(trade_info, remaining_ratio, "完全平仓")
-                trade_info['all_closed'] = True
+        # 阶段3: 20%利润 - 中等追踪
+        elif current_profit_pct >= 20 and current_stage == 2:
+            print(f"📈 {trade_id} 达到20%利润，调整追踪止损")
+            self._update_big_move_trailing_stop(trade_info, current_price, 0.08)  # 8%追踪距离
+            trade_info['big_move_stage'] = 3
+        
+        # 阶段4: 50%利润 - 积极保护
+        elif current_profit_pct >= 50 and current_stage == 3:
+            print(f"📈 {trade_id} 达到50%利润，积极保护利润")
+            self._update_big_move_trailing_stop(trade_info, current_price, 0.12)  # 12%追踪距离
+            trade_info['big_move_stage'] = 4
+        
+        # 持续追踪止损更新
+        elif trade_info.get('trailing_stop_active', False):
+            stage_distances = [0.05, 0.05, 0.08, 0.12]  # 对应各阶段的追踪距离
+            if current_stage < len(stage_distances):
+                self._update_big_move_trailing_stop(trade_info, current_price, stage_distances[current_stage])
 
     def _execute_partial_close(self, trade_info: Dict, close_ratio: float, reason: str):
         """执行部分平仓"""
@@ -1078,21 +1185,61 @@ class EnhancedPinbarStrategy(bt.Strategy):
             trade_info['size'] = current_size - close_size
             
             print(f"🔄 部分平仓 {close_ratio*100:.0f}%: {reason}")
-            print(f"    剩余仓位: {trade_info['size']:.6f}")
+            print(f"    剩余仓位: {trade_info['size']:.6f} ({trade_info['size']/trade_info['original_size']*100:.0f}%)")
             
         except Exception as e:
             print(f"❌ 部分平仓失败: {e}")
 
-    def _update_trade_extremes(self, trade_info: Dict, current_price: float):
-        """更新交易的极值价格"""
-        if trade_info['direction'] == 'buy':
-            trade_info['highest_price'] = max(trade_info['highest_price'], current_price)
+    def _move_stop_to_breakeven_plus(self, trade_info: Dict, plus_pct: float):
+        """移动止损到成本价+指定百分比"""
+        entry_price = trade_info['entry_price']
+        direction = trade_info['direction']
+        
+        if direction == 'buy':
+            new_stop = entry_price * (1 + plus_pct)
+            if new_stop > trade_info['stop_loss']:
+                trade_info['stop_loss'] = new_stop
+                print(f"🔺 止损移至成本价+{plus_pct*100:.1f}%: {new_stop:.4f}")
         else:
-            trade_info['lowest_price'] = min(trade_info['lowest_price'], current_price)
+            new_stop = entry_price * (1 - plus_pct)
+            if new_stop < trade_info['stop_loss']:
+                trade_info['stop_loss'] = new_stop
+                print(f"🔻 止损移至成本价+{plus_pct*100:.1f}%: {new_stop:.4f}")
+
+    def _update_big_move_trailing_stop(self, trade_info: Dict, current_price: float, trail_distance: float):
+        """更新大行情追踪止损"""
+        direction = trade_info['direction']
+        
+        # 根据趋势强度调整追踪距离
+        if self.current_trend_info and self.current_trend_info.strength.value >= 4:
+            trail_distance *= 1.2  # 极强趋势给更多空间
+        
+        if direction == 'buy':
+            new_stop = current_price * (1 - trail_distance)
+            if new_stop > trade_info['stop_loss']:
+                trade_info['stop_loss'] = new_stop
+                print(f"🔺 更新追踪止损: {new_stop:.4f} (距离{trail_distance*100:.1f}%)")
+        else:
+            new_stop = current_price * (1 + trail_distance)
+            if new_stop < trade_info['stop_loss']:
+                trade_info['stop_loss'] = new_stop
+                print(f"🔻 更新追踪止损: {new_stop:.4f} (距离{trail_distance*100:.1f}%)")
+
+    def _handle_extreme_profit(self, trade_info: Dict, trade_id: str):
+        """处理极端利润情况"""
+        print(f"🎉 {trade_id} 达到极端利润100%+！")
+        
+        # 可以选择再次部分平仓，锁定更多利润
+        if trade_info['size'] / trade_info['original_size'] > 0.5:  # 如果还有超过50%仓位
+            self._execute_partial_close(trade_info, 0.3, "极端利润保护")
+        
+        # 调整追踪止损更积极一些
+        current_price = self.data.close[0]
+        self._update_big_move_trailing_stop(trade_info, current_price, 0.15)  # 15%追踪距离
 
     def _calculate_current_profit_pct(self, trade_info: Dict, current_price: float) -> float:
         """计算当前利润百分比"""
-        entry_price = trade_info['actual_entry_price']
+        entry_price = trade_info['entry_price']
         direction = trade_info['direction']
         
         if direction == 'buy':
@@ -1100,51 +1247,26 @@ class EnhancedPinbarStrategy(bt.Strategy):
         else:
             return (entry_price - current_price) / entry_price * 100
 
-    def _tighten_profit_target(self, trade_info: Dict, current_price: float):
-        """收紧止盈目标"""
-        direction = trade_info['direction']
-        
-        if direction == 'buy':
-            # 设置为当前价格上方0.5%
-            new_target = current_price * 1.005
-            if new_target < trade_info['take_profit_1']:
-                trade_info['take_profit_1'] = new_target
-        else:
-            # 设置为当前价格下方0.5%
-            new_target = current_price * 0.995
-            if new_target > trade_info['take_profit_1']:
-                trade_info['take_profit_1'] = new_target
-
-    def _check_stop_loss(self, trade_info: Dict[str, Any], current_price: float) -> bool:
+    def _check_stop_loss(self, trade_info: Dict, current_price: float) -> bool:
         """检查止损"""
         direction = trade_info['direction']
         stop_loss = trade_info['stop_loss']
         
-        if direction == 'buy' and current_price <= stop_loss:
+        # 使用当前Bar的最高最低价
+        current_high = self.data.high[0]
+        current_low = self.data.low[0]
+        
+        if direction == 'buy' and current_low <= stop_loss:
+            print(f"🔴 买单止损触发: 最低价{current_low:.4f} <= 止损{stop_loss:.4f}")
             return True
-        elif direction == 'sell' and current_price >= stop_loss:
+        elif direction == 'sell' and current_high >= stop_loss:
+            print(f"🔴 卖单止损触发: 最高价{current_high:.4f} >= 止损{stop_loss:.4f}")
             return True
         
         return False
 
-    def _check_take_profit_with_trend(self, trade_info: Dict[str, Any], current_price: float) -> Optional[str]:
-        """检查止盈 - 考虑趋势因素"""
-        direction = trade_info['direction']
-        tp1 = trade_info['take_profit_1']
-        
-        # 如果正在趋势跟踪，不使用常规止盈
-        if trade_info.get('trend_tracking_active', False):
-            return None
-        
-        if direction == 'buy' and current_price >= tp1:
-            return "止盈"
-        elif direction == 'sell' and current_price <= tp1:
-            return "止盈"
-        
-        return None
-
-    def _close_position(self, trade_id: str, reason: str):
-        """平仓 - 修复版本包含完整成本计算"""
+    def _close_position_smart(self, trade_id: str, reason: str):
+        """智能平仓 - 加入方向记忆"""
         if trade_id not in self.active_trades:
             return
         
@@ -1152,127 +1274,69 @@ class EnhancedPinbarStrategy(bt.Strategy):
         current_price = self.data.close[0]
         direction = trade_info['direction']
         
-        # ✅ 正确计算滑点后的出场价格
+        # 计算滑点后的出场价格
         if direction == 'buy':
-            actual_exit_price = current_price * (1 - self.slippage_rate)  # 卖出时价格更低
-            print(f"   平仓滑点: {current_price:.4f} -> {actual_exit_price:.4f} (-{self.slippage_rate*100:.3f}%)")
+            actual_exit_price = current_price * (1 - self.slippage_rate)
         else:
-            actual_exit_price = current_price * (1 + self.slippage_rate)  # 买入时价格更高
-            print(f"   平仓滑点: {current_price:.4f} -> {actual_exit_price:.4f} (+{self.slippage_rate*100:.3f}%)")
-        
-        remaining_size = trade_info['size']
-        original_size = trade_info['original_size']
-        entry_price = trade_info['actual_entry_price']
-        
-        # ✅ 计算平仓手续费
-        exit_position_value = remaining_size * actual_exit_price
-        exit_commission = exit_position_value * self.taker_fee_rate
-        
-        # ✅ 计算平仓滑点成本
-        exit_slippage_cost = abs(actual_exit_price - current_price) * remaining_size
-        
-        # ✅ 计算实际资金费用（基于实际持仓时间）
-        entry_time = trade_info['entry_time']
-        exit_time = self.data.datetime.datetime()
-        holding_duration = exit_time - entry_time
-        holding_hours = holding_duration.total_seconds() / 3600
-        funding_periods = max(1, holding_hours / self.funding_interval_hours)  # 至少收取一次
-        actual_funding_cost = trade_info['position_value'] * self.funding_rate * funding_periods
+            actual_exit_price = current_price * (1 + self.slippage_rate)
         
         # 执行平仓
         try:
             if direction == 'buy':
-                self.sell(size=remaining_size)
+                self.sell(size=trade_info['size'])
             else:
-                self.buy(size=remaining_size)
+                self.buy(size=trade_info['size'])
             
-            # ✅ 修复利润计算逻辑
-            # 计算总持仓的利润（包括已部分平仓的）
+            # 计算损益
+            entry_price = trade_info['entry_price']
+            original_size = trade_info['original_size']
+            
             if direction == 'buy':
-                # 买入：出场价 > 入场价 = 盈利
-                gross_profit_per_unit = actual_exit_price - entry_price
+                gross_profit = (actual_exit_price - entry_price) * original_size
             else:
-                # 卖出：入场价 > 出场价 = 盈利  
-                gross_profit_per_unit = entry_price - actual_exit_price
+                gross_profit = (entry_price - actual_exit_price) * original_size
             
-            # 总毛利润 = 利润每单位 × 原始总仓位
-            gross_profit = gross_profit_per_unit * original_size
+            net_profit = gross_profit - trade_info['total_cost']
+            profit_pct = (net_profit / trade_info['required_margin']) * 100
             
-            # 总成本计算
-            total_commission = trade_info['entry_commission'] + exit_commission
-            total_funding_cost = actual_funding_cost
-            total_slippage_cost = trade_info['entry_slippage_cost'] + exit_slippage_cost
+            # 记录失败方向（用于方向记忆）
+            if net_profit < 0:
+                self._record_failure_direction(trade_info, reason)
             
-            total_costs = total_commission + total_funding_cost + total_slippage_cost
+            # 记录交易历史
+            entry_time = trade_info['entry_time']
+            exit_time = self.data.datetime.datetime()
+            holding_duration = exit_time - entry_time
+            holding_hours = holding_duration.total_seconds() / 3600
             
-            # 净利润 = 毛利润 - 总成本
-            net_profit = gross_profit - total_costs
-            
-            # 利润率基于保证金
-            profit_pct = (net_profit / trade_info['required_margin']) * 100 if trade_info['required_margin'] > 0 else 0
-            
-            print(f"💰 平仓成本详情:")
-            print(f"   持仓时间: {holding_hours:.1f} 小时")
-            print(f"   平仓手续费: {exit_commission:.2f} USDT")
-            print(f"   资金费用: {actual_funding_cost:.2f} USDT ({funding_periods:.1f} 次)")
-            print(f"   总滑点成本: {total_slippage_cost:.2f} USDT")
-            print(f"   总成本: {total_costs:.2f} USDT")
-            
-            # ✅ 安全获取趋势信息 - 修复版本
-            trend_info = trade_info.get('trend_info')
-            if trend_info:
-                try:
-                    trend_direction = trend_info.direction.value if hasattr(trend_info.direction, 'value') else str(trend_info.direction)
-                    trend_strength = trend_info.strength.value if hasattr(trend_info.strength, 'value') else str(trend_info.strength)
-                    trend_confidence = trend_info.confidence if hasattr(trend_info, 'confidence') else 0.0
-                except Exception as e:
-                    print(f"⚠️ 平仓时趋势信息获取失败: {e}")
-                    trend_direction = 'unknown'
-                    trend_strength = 'unknown'
-                    trend_confidence = 0.0
-            else:
-                trend_direction = 'unknown'
-                trend_strength = 'unknown'
-                trend_confidence = 0.0
-            
-            # ✅ 完整的交易记录 - 修复版本
             trade_record = {
                 'trade_id': trade_id,
                 'direction': direction,
                 'entry_time': entry_time,
                 'exit_time': exit_time,
                 'holding_hours': holding_hours,
+                'bars_held': trade_info.get('bars_held', 0),
                 'entry_price': entry_price,
                 'exit_price': actual_exit_price,
-                'size': original_size,  # 使用原始仓位大小
+                'size': original_size,
                 'leverage': trade_info['leverage'],
-                'position_value': trade_info['position_value'],
+                'position_value': trade_info['position_value'],  
                 'required_margin': trade_info['required_margin'],
                 'margin_ratio': trade_info['margin_ratio'],
-                
-                # ✅ 完整成本明细
-                'commission_costs': total_commission,        # 总手续费 
-                'funding_costs': actual_funding_cost,        # 资金费率
-                'slippage_costs': total_slippage_cost,       # 滑点成本
-                'total_costs': total_costs,                  # 总成本
-                
-                # ✅ 收益信息
-                'gross_profit': gross_profit,                # 毛利润
-                'profit': net_profit,                        # 净利润 (报告需要这个字段)
-                'profit_pct': profit_pct,                    # 基于保证金的收益率
-                
-                # 其他信息
+                'total_costs': trade_info['total_cost'],
+                'gross_profit': gross_profit,
+                'profit': net_profit,
+                'profit_pct': profit_pct,
                 'max_profit_seen': trade_info['max_profit_seen'],
                 'reason': reason,
-                'trend_tracking_used': trade_info.get('trend_tracking_active', False),
-                'partial_closed': trade_info.get('partial_close_count', 0) > 0,
-                'partial_close_count': trade_info.get('partial_close_count', 0),
-                'signal_type': trade_info['signal_type'],
                 'signal_strength': trade_info['signal_strength'],
                 'confidence_score': trade_info['confidence_score'],
-                'trend_direction': trend_direction,
-                'trend_strength': trend_strength,
-                'trend_confidence': trend_confidence
+                'is_big_move_trade': trade_info.get('is_big_move_trade', False),
+                'partial_closed': trade_info.get('partial_closed', False),
+                'big_move_stage': trade_info.get('big_move_stage', 0),
+                'breakout_detected': trade_info.get('breakout_detected', False),
+                'min_holding_bars': trade_info.get('min_holding_bars', 0),
+                'early_exit_protection': trade_info.get('early_exit_protection', False)
             }
             
             self.trade_history.append(trade_record)
@@ -1281,20 +1345,45 @@ class EnhancedPinbarStrategy(bt.Strategy):
             if net_profit > 0:
                 self.winning_trades += 1
                 self.total_profits += net_profit
-                # ✅ 新增：统计成功信号
                 self.signal_stats['successful_signals'] += 1
+                
+                if trade_info.get('is_big_move_trade', False):
+                    self.signal_stats['big_move_success'] += 1
+                
+                print(f"✅ 盈利平仓 {trade_id}: +{net_profit:.2f} USDT ({profit_pct:.1f}%)")
+                print(f"   持仓{trade_info.get('bars_held', 0)}根K线，最大浮盈: {trade_info['max_profit_seen']:.1f}%")
             else:
                 self.losing_trades += 1
                 self.total_losses += abs(net_profit)
+                print(f"❌ 亏损平仓 {trade_id}: {net_profit:.2f} USDT ({profit_pct:.1f}%)")
+                print(f"   持仓{trade_info.get('bars_held', 0)}根K线，失败原因: {reason}")
             
             del self.active_trades[trade_id]
             
-            print(f"🔄 平仓 {trade_id}: {direction} @ {actual_exit_price:.4f}")
-            print(f"    毛利: {gross_profit:.2f} USDT | 净利: {net_profit:.2f} USDT | 利润率: {profit_pct:.2f}%")
-            print(f"    成本: {total_costs:.2f} USDT | 原因: {reason}")
-            
         except Exception as e:
-            print(f"❌ 平仓失败: {e}")
+            print(f"❌ 智能平仓失败: {e}")
+    
+    def _record_failure_direction(self, trade_info: Dict, reason: str):
+        """记录失败方向用于方向记忆"""
+        failure_record = {
+            'price': trade_info['entry_price'],
+            'direction': trade_info['direction'],
+            'bar_index': trade_info['entry_bar_index'],
+            'reason': reason,
+            'timestamp': self.data.datetime.datetime()
+        }
+        
+        self.recent_failures.append(failure_record)
+        
+        # 清理过期记录
+        current_bar = len(self.data_cache)
+        self.recent_failures = [
+            f for f in self.recent_failures 
+            if current_bar - f['bar_index'] <= self.memory_decay_bars * 2
+        ]
+        
+        print(f"📝 记录失败方向: {trade_info['direction']} @ {trade_info['entry_price']:.4f}")
+        print(f"   当前失败记录数: {len(self.recent_failures)}")
 
     def _update_account_stats(self):
         """更新账户统计"""
@@ -1312,49 +1401,59 @@ class EnhancedPinbarStrategy(bt.Strategy):
         # 平掉所有持仓
         for trade_id in list(self.active_trades.keys()):
             self._close_position(trade_id, "回测结束")
-        # ✅ 新增：计算信号统计
+        
+        # 计算信号成功率
         if self.signal_stats['executed_signals'] > 0:
             self.signal_stats['signal_success_rate'] = (
                 self.signal_stats['successful_signals'] / self.signal_stats['executed_signals'] * 100
             )
+        
         # 统计分析
         total_trades = len(self.trade_history)
-        trend_tracking_trades = len([t for t in self.trade_history if t.get('trend_tracking_used', False)])
+        big_move_trades = len([t for t in self.trade_history if t.get('is_big_move_trade', False)])
         
-        print(f"\n📊 回测结束统计 (趋势跟踪版):")
+        print(f"\n📊 博大行情版回测结果:")
         print(f"    总交易: {total_trades}")
-        print(f"    趋势跟踪交易: {trend_tracking_trades} ({trend_tracking_trades/total_trades*100 if total_trades > 0 else 0:.1f}%)")
+        print(f"    大行情交易: {big_move_trades} ({big_move_trades/total_trades*100 if total_trades > 0 else 0:.1f}%)")
         print(f"    盈利交易: {self.winning_trades}")
-        print(f"    账户保护激活: {'是' if self.account_protection_active else '否'}")
+        print(f"    亏损交易: {self.losing_trades}")
+        print(f"    最大回撤: {self.max_dd*100:.2f}%")
+        print(f"    是否暂停交易: {'是' if self.trading_paused else '否'}")
+        if self.trading_paused:
+            print(f"    暂停原因: {self.pause_reason}")
         
-        # ✅ 新增：信号质量统计输出
-        print(f"\n🎯 信号质量统计:")
-        print(f"    总检测信号: {self.signal_stats['total_signals']}")
+        print(f"\n🎯 大行情信号统计:")
+        print(f"    检测信号: {self.signal_stats['total_signals']}")
+        print(f"    大行情信号: {self.signal_stats['big_move_signals']}")
         print(f"    执行信号: {self.signal_stats['executed_signals']}")
-        print(f"    信号执行率: {self.signal_stats['executed_signals']/self.signal_stats['total_signals']*100 if self.signal_stats['total_signals'] > 0 else 0:.1f}%")
         print(f"    信号成功率: {self.signal_stats['signal_success_rate']:.1f}%")
-        print(f"    高质量信号: {self.signal_stats['high_quality_signals']}")
-        print(f"    趋势对齐信号: {self.signal_stats['trend_aligned_signals']}")
+        if self.signal_stats['big_move_signals'] > 0:
+            big_move_success_rate = self.signal_stats['big_move_success'] / self.signal_stats['big_move_signals'] * 100
+            print(f"    大行情成功率: {big_move_success_rate:.1f}%")
         
         if self.trade_history:
-            avg_max_profit = np.mean([t['max_profit_seen'] for t in self.trade_history])
-            total_commission = sum(t.get('commission_costs', 0) for t in self.trade_history)
-            total_funding = sum(t.get('funding_costs', 0) for t in self.trade_history)
-            total_slippage = sum(t.get('slippage_costs', 0) for t in self.trade_history)
+            # 分析大行情交易表现
+            big_move_profits = [t['profit'] for t in self.trade_history if t.get('is_big_move_trade', False) and t['profit'] > 0]
+            if big_move_profits:
+                avg_big_move_profit = np.mean(big_move_profits)
+                max_big_move_profit = max(big_move_profits)
+                print(f"    大行情平均盈利: {avg_big_move_profit:.2f} USDT")
+                print(f"    大行情最大盈利: {max_big_move_profit:.2f} USDT")
             
-            print(f"    平均最大浮盈: {avg_max_profit:.2f}%")
-            print(f"    累计手续费: {total_commission:.2f} USDT")
-            print(f"    累计资金费率: {total_funding:.2f} USDT")
-            print(f"    累计滑点成本: {total_slippage:.2f} USDT")
-            print(f"    总交易成本: {total_commission + total_funding + total_slippage:.2f} USDT")
+            max_profits_seen = [t.get('max_profit_seen', 0) for t in self.trade_history]
+            avg_max_profit = np.mean(max_profits_seen)
+            print(f"    平均最大浮盈: {avg_max_profit:.1f}%")
+            
+            total_costs = sum(t.get('total_costs', 0) for t in self.trade_history)
+            print(f"    累计交易成本: {total_costs:.2f} USDT")
 
 
 def run_enhanced_backtest(data: pd.DataFrame, trading_params: TradingParams, 
                          backtest_params: BacktestParams,
                          detector_config: Dict[str, Any] = None,
-                         use_dynamic_leverage: bool = False) -> Dict[str, Any]:
-    """运行增强版回测 - 趋势跟踪版（修复版）"""
-    print(f"🚀 开始趋势跟踪版回测: {backtest_params.symbol} {backtest_params.interval}")
+                         use_dynamic_leverage: bool = True) -> Dict[str, Any]:
+    """运行博大行情版回测"""
+    print(f"🚀 开始博大行情版回测: {backtest_params.symbol} {backtest_params.interval}")
     
     # 设置Backtrader环境
     cerebro = bt.Cerebro()
@@ -1363,15 +1462,15 @@ def run_enhanced_backtest(data: pd.DataFrame, trading_params: TradingParams,
     data_feed = CustomDataFeed(dataname=data)
     cerebro.adddata(data_feed)
     
-    # 添加增强策略
+    # 添加博大行情策略
     cerebro.addstrategy(EnhancedPinbarStrategy, 
                        trading_params=trading_params,
                        detector_config=detector_config,
-                       use_dynamic_leverage=use_dynamic_leverage)
+                       use_dynamic_leverage=True)  # 强制启用动态杠杆
     
     # 设置初始资金和手续费
     cerebro.broker.setcash(backtest_params.initial_cash)
-    cerebro.broker.setcommission(commission=backtest_params.commission)
+    cerebro.broker.setcommission(commission=0.001)  # 统一手续费0.1%
     
     # 运行回测
     print(f'💰 初始资金: {backtest_params.initial_cash:,.2f} USDT')
@@ -1384,7 +1483,7 @@ def run_enhanced_backtest(data: pd.DataFrame, trading_params: TradingParams,
     print(f'💰 最终资金: {final_value:,.2f} USDT')
     print(f'📈 总收益率: {total_return:.2f}%')
     
-    # ✅ 详细统计 - 修复版本包含完整成本信息
+    # 统计信息
     total_trades = len(strategy.trade_history)
     
     if total_trades > 0:
@@ -1393,81 +1492,41 @@ def run_enhanced_backtest(data: pd.DataFrame, trading_params: TradingParams,
         avg_loss = strategy.total_losses / strategy.losing_trades if strategy.losing_trades > 0 else 0
         profit_factor = avg_profit / avg_loss if avg_loss > 0 else 0
         
-        # 趋势跟踪相关统计
-        trend_trades = [t for t in strategy.trade_history if t.get('trend_tracking_used', False)]
-        trend_win_rate = len([t for t in trend_trades if t['profit'] > 0]) / len(trend_trades) * 100 if trend_trades else 0
+        # 博大行情特殊统计
+        big_move_trades = [t for t in strategy.trade_history if t.get('is_big_move_trade', False)]
+        big_move_count = len(big_move_trades)
+        big_move_win_count = len([t for t in big_move_trades if t['profit'] > 0])
+        big_move_win_rate = big_move_win_count / big_move_count * 100 if big_move_count > 0 else 0
         
-        # ✅ 成本和保证金统计
-        # ✅ 修复保证金和杠杆统计
-        leverages = []
-        margin_ratios = []
-        margin_amounts = []
-        position_values = []
-        
-        for trade in strategy.trade_history:
-            if 'leverage' in trade and trade['leverage'] > 0:
-                leverages.append(trade['leverage'])
-            
-            if 'margin_ratio' in trade and trade['margin_ratio'] >= 0:  # 过滤负数
-                margin_ratios.append(trade['margin_ratio'])
-            
-            if 'required_margin' in trade and trade['required_margin'] >= 0:  # 过滤负数
-                margin_amounts.append(trade['required_margin'])
-            
-            if 'position_value' in trade and trade['position_value'] > 0:
-                position_values.append(trade['position_value'])
-        
-         # 计算统计值
+        # 成本和利润统计
+        total_costs = sum(t.get('total_costs', 0) for t in strategy.trade_history)
+        leverages = [t.get('leverage', 1) for t in strategy.trade_history]
         avg_leverage = np.mean(leverages) if leverages else 1.0
         max_leverage = max(leverages) if leverages else 1.0
+        
+        margin_ratios = [t.get('margin_ratio', 0) for t in strategy.trade_history if t.get('margin_ratio', 0) > 0]
         avg_margin_ratio = np.mean(margin_ratios) if margin_ratios else 0.0
         max_margin_ratio = max(margin_ratios) if margin_ratios else 0.0
-        total_margin_used = sum(margin_amounts) if margin_amounts else 0.0
-        total_position_value = sum(position_values) if position_values else 0.0
-        # 分别统计盈利和亏损交易的保证金使用
-        profitable_trades = [t for t in strategy.trade_history if t.get('profit', 0) > 0]
-        losing_trades = [t for t in strategy.trade_history if t.get('profit', 0) <= 0]
         
-        avg_margin_profitable = np.mean([t.get('margin_ratio', 0) for t in profitable_trades if t.get('margin_ratio', 0) >= 0]) if profitable_trades else 0.0
-        avg_margin_losing = np.mean([t.get('margin_ratio', 0) for t in losing_trades if t.get('margin_ratio', 0) >= 0]) if losing_trades else 0.0
-        
-        # 成本统计
-        commissions = [t.get('commission_costs', 0) for t in strategy.trade_history]
-        funding_costs = [t.get('funding_costs', 0) for t in strategy.trade_history]
-        slippage_costs = [t.get('slippage_costs', 0) for t in strategy.trade_history]
-        
-        total_commission = sum(commissions)
-        total_funding = sum(funding_costs)
-        total_slippage = sum(slippage_costs)
-        total_costs = total_commission + total_funding + total_slippage
-
-
-        # 最大浮盈统计
         max_profits_seen = [t.get('max_profit_seen', 0) for t in strategy.trade_history]
         avg_max_profit = np.mean(max_profits_seen)
+        max_single_profit = max([t['profit'] for t in strategy.trade_history]) if strategy.trade_history else 0
         
-        # 部分平仓统计
-        partial_trades = [t for t in strategy.trade_history if t.get('partial_closed', False)]
-        partial_close_rate = len(partial_trades) / total_trades * 100 if total_trades > 0 else 0
-        print(f"📊 保证金使用统计:")
+        print(f"📊 博大行情统计:")
+        print(f"   大行情交易: {big_move_count}/{total_trades} ({big_move_count/total_trades*100:.1f}%)")
+        print(f"   大行情胜率: {big_move_win_rate:.1f}%")
         print(f"   平均杠杆: {avg_leverage:.1f}x (最高: {max_leverage:.1f}x)")
-        print(f"   平均保证金占用: {avg_margin_ratio:.1f}% (最高: {max_margin_ratio:.1f}%)")
-        print(f"   盈利交易平均保证金: {avg_margin_profitable:.1f}%")
-        print(f"   亏损交易平均保证金: {avg_margin_losing:.1f}%")
-        print(f"   总保证金使用: {total_margin_used:.2f} USDT")
-        print(f"   总仓位价值: {total_position_value:.2f} USDT")
+        print(f"   平均保证金占用: {avg_margin_ratio:.1f}%")
+        print(f"   最大单笔盈利: {max_single_profit:.2f} USDT")
+        print(f"   平均最大浮盈: {avg_max_profit:.1f}%")
     else:
-        # 无交易时的默认值
-        win_rate = profit_factor = trend_win_rate = 0
+        win_rate = profit_factor = big_move_win_rate = 0
         avg_leverage = max_leverage = 1.0
         avg_margin_ratio = max_margin_ratio = 0.0
-        avg_margin_profitable = avg_margin_losing = 0.0
-        total_margin_used = total_position_value = 0.0
-        avg_max_profit = 0
-        total_commission = total_funding = total_slippage = total_costs = 0
-        partial_close_rate = 0
+        total_costs = avg_max_profit = max_single_profit = 0
+        big_move_count = 0
     
-    # ✅ 返回完整结果包含成本分析
+    # 返回结果
     return {
         'initial_cash': backtest_params.initial_cash,
         'final_value': final_value,
@@ -1478,46 +1537,33 @@ def run_enhanced_backtest(data: pd.DataFrame, trading_params: TradingParams,
         'win_rate': win_rate,
         'profit_factor': profit_factor,
         'max_drawdown': strategy.max_dd,
-        
-         # ✅ 修复后的杠杆和保证金信息
         'avg_leverage': avg_leverage,
         'max_leverage': max_leverage,
         'avg_margin_usage': avg_margin_ratio,
         'max_margin_usage': max_margin_ratio,
-        'avg_margin_profitable_trades': avg_margin_profitable,
-        'avg_margin_losing_trades': avg_margin_losing,
-        'total_margin_used': total_margin_used,
-        'total_position_value': total_position_value,
-        'margin_efficiency': total_position_value / total_margin_used if total_margin_used > 0 else 0,
-        
-        
-        # ✅ 成本分析
-        'total_commission': total_commission,
-        'total_funding': total_funding,
-        'total_slippage': total_slippage,
         'total_costs': total_costs,
-        'avg_commission_per_trade': total_commission / total_trades if total_trades > 0 else 0,
-        'avg_funding_per_trade': total_funding / total_trades if total_trades > 0 else 0,
-        
-        # 趋势跟踪统计
         'avg_max_profit_seen': avg_max_profit,
-        'trend_tracking_win_rate': trend_win_rate,
-        'trend_tracking_trades': len([t for t in strategy.trade_history if t.get('trend_tracking_used', False)]),
-        'partial_close_rate': partial_close_rate,
-        # ✅ 新增：信号质量统计
+        'max_single_profit': max_single_profit,
+        
+        # 博大行情特殊指标
+        'big_move_trades': big_move_count,
+        'big_move_win_rate': big_move_win_rate,
         'signal_stats': {
             'total_signals': strategy.signal_stats['total_signals'],
             'executed_signals': strategy.signal_stats['executed_signals'],
             'signal_execution_rate': strategy.signal_stats['executed_signals']/strategy.signal_stats['total_signals']*100 if strategy.signal_stats['total_signals'] > 0 else 0,
             'signal_success_rate': strategy.signal_stats['signal_success_rate'],
-            'high_quality_signals': strategy.signal_stats['high_quality_signals'],
-            'trend_aligned_signals': strategy.signal_stats['trend_aligned_signals'],
-            'avg_signal_strength': np.mean(strategy.signal_stats['signal_strengths']) if strategy.signal_stats['signal_strengths'] else 0,
-            'avg_confidence_score': np.mean(strategy.signal_stats['confidence_scores']) if strategy.signal_stats['confidence_scores'] else 0
+            'big_move_signals': strategy.signal_stats['big_move_signals'],
+            'big_move_success': strategy.signal_stats['big_move_success'],
+            'high_quality_signals': strategy.signal_stats['executed_signals'],
+            'trend_aligned_signals': 0,
+            'avg_signal_strength': 0,
+            'avg_confidence_score': 0
         },
-        # 原有数据
         'trades': strategy.trade_history,
-        'account_protection_triggered': strategy.account_protection_active,
-        'use_dynamic_leverage': use_dynamic_leverage,
+        'trading_paused': strategy.trading_paused,
+        'pause_reason': strategy.pause_reason,
+        'account_protection_triggered': strategy.trading_paused,
+        'use_dynamic_leverage': True,
         'trend_tracking_enabled': True
     }

@@ -20,39 +20,39 @@ class OptimizedLeverageManager:
         self.coin_categories = {
             'btc': {
                 'symbols': ['BTCUSDT'],
-                'base_leverage': 50,  # 从15提升到25
-                'max_leverage': 100,   # 从25提升到50
+                'base_leverage': 6,  # 从15提升到25
+                'max_leverage': 12,   # 从25提升到50
                 'volatility_factor': 0.8,  # 降低波动率惩罚
                 'liquidity_score': 10
             },
             'eth': {
                 'symbols': ['ETHUSDT'],
-                'base_leverage': 20,  # 从12提升到20
-                'max_leverage': 100,   # 从20提升到40
+                'base_leverage': 6,  # 从12提升到20
+                'max_leverage': 10,   # 从20提升到40
                 'volatility_factor': 0.85,
                 'liquidity_score': 9
             },
             'major_alts': {
                 'symbols': ['BNBUSDT', 'ADAUSDT', 'DOTUSDT', 'SOLUSDT', 'AVAXUSDT', 
                            'MATICUSDT', 'LINKUSDT', 'UNIUSDT', 'LTCUSDT', 'BCHUSDT'],
-                'base_leverage': 40,  # 从10提升到18
-                'max_leverage': 75,   # 从15提升到35
+                'base_leverage': 5,  # 从10提升到18
+                'max_leverage': 8,   # 从15提升到35
                 'volatility_factor': 0.9,
                 'liquidity_score': 8
             },
             'popular_alts': {
                 'symbols': ['XRPUSDT', 'DOGEUSDT', 'SHIBUSDT', 'TRXUSDT', 'ETCUSDT',
                            'XLMUSDT', 'VETUSDT', 'FILUSDT', 'SANDUSDT', 'MANAUSDT'],
-                'base_leverage': 35,  # 从8提升到15
-                'max_leverage': 60,   # 从12提升到30
+                'base_leverage': 12,  # 从8提升到15
+                'max_leverage': 30,   # 从12提升到30
                 'volatility_factor': 0.95,
                 'liquidity_score': 7
             },
             'mid_caps': {
                 'symbols': ['NEARUSDT', 'ATOMUSDT', 'FTMUSDT', 'HBARUSDT', 'AAVEUSDT',
                            'COMPUSDT', 'MKRUSDT', 'SUSHIUSDT', 'SNXUSDT', 'CRVUSDT'],
-                'base_leverage': 30,  # 从6提升到12
-                'max_leverage': 50,   # 从10提升到25
+                'base_leverage': 3,  # 从6提升到12
+                'max_leverage': 15,   # 从10提升到25
                 'volatility_factor': 1.0,
                 'liquidity_score': 6
             },
@@ -113,14 +113,14 @@ class OptimizedLeverageManager:
             }
         }
         
-        # 最小杠杆保证 - 新增
+        # 最小杠杆保证 - 实用调整
         self.min_leverage_guarantee = {
-            'btc': 30,
-            'eth': 20,
-            'major_alts': 20,
-            'popular_alts': 18,
-            'mid_caps': 15,
-            'small_caps': 12
+            'btc': 8,       # 从30降低到8
+            'eth': 6,       # 从20降低到6  
+            'major_alts': 2, # 从20降低到5
+            'popular_alts': 2, # 从18降低到4
+            'mid_caps': 2,     # 从15降低到3
+            'small_caps': 2    # 从12降低到3
         }
     
     def get_capital_factor(self, total_capital: float) -> Dict[str, float]:
